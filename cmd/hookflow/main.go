@@ -686,8 +686,8 @@ func isHookflowSelfRepair(evt *schema.Event, dir string) bool {
 	// Check if the path is in .github/hooks/
 	filePath := evt.File.Path
 	
-	// Normalize path separators
-	filePath = filepath.ToSlash(filePath)
+	// Normalize path separators (handle both Windows and Unix paths on any platform)
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
 	
 	// Check for .github/hooks/ in the path
 	if strings.Contains(filePath, ".github/hooks/") {
