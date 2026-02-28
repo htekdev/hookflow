@@ -122,7 +122,7 @@ func EnableDebug() {
 // Close closes the log file
 func Close() {
 	if defaultLogger != nil && defaultLogger.file != nil {
-		defaultLogger.file.Close()
+		_ = defaultLogger.file.Close()
 	}
 }
 
@@ -171,7 +171,7 @@ func log(level Level, format string, args ...interface{}) {
 		message,
 	)
 
-	defaultLogger.file.WriteString(entry)
+	_, _ = defaultLogger.file.WriteString(entry)
 }
 
 // Debug logs at debug level
@@ -245,7 +245,7 @@ func cleanOldLogs(dir string, maxDays int) {
 		}
 
 		if info.ModTime().Before(cutoff) {
-			os.Remove(filepath.Join(dir, name))
+			_ = os.Remove(filepath.Join(dir, name))
 		}
 	}
 }

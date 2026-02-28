@@ -47,8 +47,8 @@ func TestInitAndLog(t *testing.T) {
 	// Use temp directory for test
 	tmpDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	// Initialize
 	err := Init()
@@ -108,8 +108,8 @@ func TestContextLogger(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	err := Init()
 	if err != nil {
@@ -140,8 +140,8 @@ func TestStartOperation(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	err := Init()
 	if err != nil {
@@ -217,8 +217,8 @@ func TestLogLevelFiltering(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
 
 	err := Init()
 	if err != nil {

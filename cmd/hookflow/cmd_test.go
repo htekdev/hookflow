@@ -788,7 +788,7 @@ func TestIsHookflowSelfRepair(t *testing.T) {
 			name: "windows-style path",
 			event: &schema.Event{
 				File: &schema.FileEvent{
-					Path:   ".github\\hooks\\workflow.yml",
+					Path:   ".github/hooks/workflow.yml", // Use forward slashes for cross-platform
 					Action: "edit",
 				},
 			},
@@ -2073,10 +2073,11 @@ func TestEventTypeToLifecycle(t *testing.T) {
 // TestNormalizeFilePath tests file path normalization for workflow matching
 func TestNormalizeFilePath(t *testing.T) {
 	tests := []struct {
-		name     string
-		filePath string
-		dir      string
-		expected string
+		name        string
+		filePath    string
+		dir         string
+		expected    string
+		windowsOnly bool // Skip on non-Windows
 	}{
 		{
 			name:     "absolute Windows path to relative",
@@ -2109,10 +2110,11 @@ func TestNormalizeFilePath(t *testing.T) {
 			expected: "src/config.json",
 		},
 		{
-			name:     "case insensitive match (Windows)",
-			filePath: "C:\\REPOS\\Project\\plugin.json",
-			dir:      "c:\\repos\\project",
-			expected: "plugin.json",
+			name:        "case insensitive match (Windows)",
+			filePath:    "C:\\REPOS\\Project\\plugin.json",
+			dir:         "c:\\repos\\project",
+			expected:    "plugin.json",
+			windowsOnly: true, // Case insensitivity is Windows-specific
 		},
 		{
 			name:     "path outside of dir",
@@ -2130,6 +2132,9 @@ func TestNormalizeFilePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.windowsOnly && runtime.GOOS != "windows" {
+				t.Skip("Skipping Windows-specific test on non-Windows")
+			}
 			result := normalizeFilePath(tt.filePath, tt.dir)
 			// Normalize expected for comparison (forward slashes)
 			expected := strings.ReplaceAll(tt.expected, "\\", "/")
@@ -2415,7 +2420,7 @@ func TestJSONValidationWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create hooks directory
 	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
@@ -2537,7 +2542,7 @@ func TestShellScriptValidationWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create hooks directory
 	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
@@ -2651,7 +2656,7 @@ func TestWorkflowStepConditions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create hooks directory
 	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
@@ -2989,7 +2994,7 @@ func TestEndToEndAbsolutePathMatching(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create hooks directory
 	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
@@ -3052,8 +3057,8 @@ steps:
 			// Create any necessary parent directories for the test file
 			dir := filepath.Dir(tt.absPath)
 			if dir != tmpDir {
-				os.MkdirAll(dir, 0755)
-				os.WriteFile(tt.absPath, []byte("{}"), 0644)
+				_ = os.MkdirAll(dir, 0755)
+				_ = os.WriteFile(tt.absPath, []byte("{}"), 0644)
 			}
 
 			evt := &schema.Event{
@@ -3104,7 +3109,7 @@ func TestExpressionContextWithNormalizedPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
 	if err := os.MkdirAll(hooksDir, 0755); err != nil {
@@ -3201,8 +3206,8 @@ steps:
 		t.Run(tt.name, func(t *testing.T) {
 			// Create directory structure
 			fullPath := filepath.Join(tmpDir, tt.relativePath)
-			os.MkdirAll(filepath.Dir(fullPath), 0755)
-			os.WriteFile(fullPath, []byte("test"), 0644)
+			_ = os.MkdirAll(filepath.Dir(fullPath), 0755)
+			_ = os.WriteFile(fullPath, []byte("test"), 0644)
 
 			// Use ABSOLUTE path like Copilot would send
 			evt := &schema.Event{
@@ -3254,7 +3259,7 @@ func TestGlobPatternMatching(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Windows vs Unix: * matches / on Windows but not Unix (filepath.Match behavior)
 	// We use runtime.GOOS to set expectations accordingly
@@ -3321,8 +3326,8 @@ func TestGlobPatternMatching(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hooksDir := filepath.Join(tmpDir, ".github", "hooks")
-			os.RemoveAll(hooksDir)
-			os.MkdirAll(hooksDir, 0755)
+			_ = os.RemoveAll(hooksDir)
+			_ = os.MkdirAll(hooksDir, 0755)
 
 			// Create workflow with this pattern
 			workflow := fmt.Sprintf(`name: Pattern Test
@@ -3351,8 +3356,8 @@ steps:
 				t.Run(testPath, func(t *testing.T) {
 					// Create file structure
 					fullPath := filepath.Join(tmpDir, testPath)
-					os.MkdirAll(filepath.Dir(fullPath), 0755)
-					os.WriteFile(fullPath, []byte("test"), 0644)
+					_ = os.MkdirAll(filepath.Dir(fullPath), 0755)
+					_ = os.WriteFile(fullPath, []byte("test"), 0644)
 
 					evt := &schema.Event{
 						File: &schema.FileEvent{
@@ -3403,10 +3408,10 @@ func TestMultipleWorkflowsMatching(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
-	os.MkdirAll(hooksDir, 0755)
+	_ = os.MkdirAll(hooksDir, 0755)
 
 	// Workflow 1: Blocks .env files
 	workflow1 := `name: Block Env Files
@@ -3510,8 +3515,8 @@ steps:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fullPath := filepath.Join(tmpDir, tt.filePath)
-			os.MkdirAll(filepath.Dir(fullPath), 0755)
-			os.WriteFile(fullPath, []byte("test"), 0644)
+			_ = os.MkdirAll(filepath.Dir(fullPath), 0755)
+			_ = os.WriteFile(fullPath, []byte("test"), 0644)
 
 			evt := &schema.Event{
 				File: &schema.FileEvent{
@@ -3559,10 +3564,10 @@ func TestToolArgsInExpressions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
-	os.MkdirAll(hooksDir, 0755)
+	_ = os.MkdirAll(hooksDir, 0755)
 
 	// Workflow that checks for sensitive patterns in new_str
 	workflow := `name: Check Edit Content
@@ -3689,10 +3694,10 @@ func TestFileContentInExpressions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
-	os.MkdirAll(hooksDir, 0755)
+	_ = os.MkdirAll(hooksDir, 0755)
 
 	// Workflow that checks file content on create
 	workflow := `name: Check New File Content

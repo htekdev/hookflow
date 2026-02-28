@@ -133,10 +133,10 @@ func followLog(path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open log file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Seek to end
-	file.Seek(0, io.SeekEnd)
+	_, _ = file.Seek(0, io.SeekEnd)
 
 	fmt.Println("Following log output (Ctrl+C to stop)...")
 	fmt.Println()
