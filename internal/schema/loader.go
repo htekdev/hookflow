@@ -24,6 +24,22 @@ func LoadWorkflow(filePath string) (*Workflow, error) {
 	return &workflow, nil
 }
 
+// LoadAndValidateWorkflow loads and validates a workflow using JSON schema
+func LoadAndValidateWorkflow(filePath string) (*Workflow, error) {
+	// First validate with JSON schema
+	result := ValidateWorkflow(filePath)
+	if !result.Valid {
+		// Return first error
+		if len(result.Errors) > 0 {
+			return nil, fmt.Errorf("%s", result.Errors[0].Message)
+		}
+		return nil, fmt.Errorf("workflow validation failed")
+	}
+
+	// Then load the workflow
+	return LoadWorkflow(filePath)
+}
+
 // LoadEvent loads an event from a JSON string
 func LoadEvent(jsonStr string) (*Event, error) {
 	// For now, we'll just return a nil event

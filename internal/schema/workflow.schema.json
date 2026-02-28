@@ -169,6 +169,14 @@
             "enum": ["create", "edit", "delete"]
           }
         },
+        "actions": {
+          "type": "array",
+          "description": "File event actions to trigger on (alias for types)",
+          "items": {
+            "type": "string",
+            "enum": ["create", "edit", "delete"]
+          }
+        },
         "paths": {
           "type": "array",
           "description": "File paths or patterns to include",

@@ -299,12 +299,18 @@ func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
 		return outputWorkflowResult(result)
 	}
 
-	// Load and match workflows
+	// Load and validate ALL workflows first - fail fast on invalid workflows
 	var matchingWorkflows []*schema.Workflow
+	var validationErrors []string
 	for _, path := range workflowFiles {
-		wf, err := schema.LoadWorkflow(path)
+		wf, err := schema.LoadAndValidateWorkflow(path)
 		if err != nil {
-			// Skip invalid workflows
+			// Collect validation errors instead of silently skipping
+			relPath, _ := filepath.Rel(dir, path)
+			if relPath == "" {
+				relPath = path
+			}
+			validationErrors = append(validationErrors, fmt.Sprintf("%s: %v", relPath, err))
 			continue
 		}
 
@@ -313,6 +319,23 @@ func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
 		if matcher.Match(evt) {
 			matchingWorkflows = append(matchingWorkflows, wf)
 		}
+	}
+
+	// If any workflows are invalid, check if agent is trying to fix them
+	if len(validationErrors) > 0 {
+		// Allow edits/creates to .github/hooks/ so agent can self-repair
+		if isHookflowSelfRepair(evt, dir) {
+			result := schema.NewAllowResult()
+			result.PermissionDecisionReason = "Allowing hookflow self-repair (workflows have errors)"
+			return outputWorkflowResult(result)
+		}
+
+		// Otherwise deny - workflows must be fixed first
+		result := &schema.WorkflowResult{
+			PermissionDecision:       "deny",
+			PermissionDecisionReason: fmt.Sprintf("Invalid workflow(s): %s. Fix workflows in .github/hooks/ first.", strings.Join(validationErrors, "; ")),
+		}
+		return outputWorkflowResult(result)
 	}
 
 	if len(matchingWorkflows) == 0 {
@@ -623,4 +646,36 @@ func extractPushRef(command string, currentBranch string) string {
 	
 	// Default to current branch
 	return "refs/heads/" + currentBranch
+}
+
+// isHookflowSelfRepair checks if the current event is an edit/create to .github/hooks/
+// This allows the agent to fix invalid workflows without being blocked
+func isHookflowSelfRepair(evt *schema.Event, dir string) bool {
+	// Must be a file event (edit or create)
+	if evt.File == nil {
+		return false
+	}
+	
+	// Must be editing/creating a file
+	action := evt.File.Action
+	if action != "edit" && action != "create" {
+		return false
+	}
+	
+	// Check if the path is in .github/hooks/
+	filePath := evt.File.Path
+	
+	// Normalize path separators
+	filePath = filepath.ToSlash(filePath)
+	
+	// Check for .github/hooks/ in the path
+	if strings.Contains(filePath, ".github/hooks/") {
+		// Must be a YAML file
+		ext := strings.ToLower(filepath.Ext(filePath))
+		if ext == ".yml" || ext == ".yaml" {
+			return true
+		}
+	}
+	
+	return false
 }

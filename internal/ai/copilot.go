@@ -149,7 +149,7 @@ The workflow must follow this structure:
 - on: (required) Trigger configuration - can be:
   - hooks: Match hook type (preToolUse, postToolUse)
   - tool: Match specific tool with args patterns
-  - file: Match file events with paths/actions
+  - file: Match file events with paths and types
   - commit: Match git commit events with paths/message patterns
   - push: Match git push events with branches/tags
 - blocking: (optional, default true) Whether to block on failure
@@ -162,12 +162,12 @@ The workflow must follow this structure:
 
 ## Trigger Examples
 
-File trigger:
+File trigger (use 'types' for actions like edit/create/delete):
 on:
   file:
     paths:
       - '**/*.env*'
-    actions:
+    types:
       - edit
       - create
 
@@ -188,6 +188,7 @@ on:
 
 Use ${{ }} for expressions:
 - ${{ event.file.path }} - File path being edited
+- ${{ event.tool.args.path }} - Tool argument (for tool triggers)
 - ${{ event.commit.message }} - Commit message
 - ${{ contains(event.file.path, '.env') }} - Check if path contains .env
 - ${{ endsWith(event.file.path, '.ts') }} - Check file extension
@@ -198,8 +199,9 @@ Use ${{ }} for expressions:
 2. Start with --- (YAML document separator)
 3. Include descriptive name and description
 4. Use appropriate triggers for the requirement
-5. Include clear step names
-6. Add comments to explain complex logic
+5. For file triggers, use 'types' field (not 'actions')
+6. Include clear step names
+7. Add exit 1 to block/deny the action when needed
 
 Generate the workflow now:`, userPrompt)
 }

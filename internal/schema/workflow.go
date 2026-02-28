@@ -88,9 +88,18 @@ type ToolTrigger struct {
 
 // FileTrigger matches file create/edit events
 type FileTrigger struct {
-	Types       []string `yaml:"types,omitempty" json:"types,omitempty"`             // create, edit
-	Paths       []string `yaml:"paths,omitempty" json:"paths,omitempty"`             // Include patterns
+	Types       []string `yaml:"types,omitempty" json:"types,omitempty"`               // create, edit
+	Actions     []string `yaml:"actions,omitempty" json:"actions,omitempty"`           // alias for types
+	Paths       []string `yaml:"paths,omitempty" json:"paths,omitempty"`               // Include patterns
 	PathsIgnore []string `yaml:"paths-ignore,omitempty" json:"paths-ignore,omitempty"` // Exclude patterns
+}
+
+// GetTypes returns types or actions (whichever is set)
+func (f *FileTrigger) GetTypes() []string {
+	if len(f.Types) > 0 {
+		return f.Types
+	}
+	return f.Actions
 }
 
 // CommitTrigger matches git commit events

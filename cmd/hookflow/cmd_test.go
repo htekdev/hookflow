@@ -705,3 +705,392 @@ func TestRunCommandDefaultDir(t *testing.T) {
 	// Just verify it runs - results depend on cwd content
 }
 
+// TestIsHookflowSelfRepair tests the self-repair detection function
+func TestIsHookflowSelfRepair(t *testing.T) {
+	tests := []struct {
+		name     string
+		event    *schema.Event
+		expected bool
+	}{
+		{
+			name: "edit to hookflow workflow yml",
+			event: &schema.Event{
+				File: &schema.FileEvent{
+					Path:   ".github/hooks/my-workflow.yml",
+					Action: "edit",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "create hookflow workflow yaml",
+			event: &schema.Event{
+				File: &schema.FileEvent{
+					Path:   ".github/hooks/new-workflow.yaml",
+					Action: "create",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "edit to non-hookflow file",
+			event: &schema.Event{
+				File: &schema.FileEvent{
+					Path:   "src/main.go",
+					Action: "edit",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "edit to hookflow but not yml",
+			event: &schema.Event{
+				File: &schema.FileEvent{
+					Path:   ".github/hooks/README.md",
+					Action: "edit",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "delete hookflow workflow - not allowed for self-repair",
+			event: &schema.Event{
+				File: &schema.FileEvent{
+					Path:   ".github/hooks/my-workflow.yml",
+					Action: "delete",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "no file event",
+			event: &schema.Event{
+				Tool: &schema.ToolEvent{
+					Name: "edit",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "nested path in hooks",
+			event: &schema.Event{
+				File: &schema.FileEvent{
+					Path:   ".github/hooks/subdir/workflow.yml",
+					Action: "edit",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "windows-style path",
+			event: &schema.Event{
+				File: &schema.FileEvent{
+					Path:   ".github\\hooks\\workflow.yml",
+					Action: "edit",
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isHookflowSelfRepair(tt.event, "/test/dir")
+			if result != tt.expected {
+				t.Errorf("isHookflowSelfRepair() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestInvalidWorkflowDeniesNonHookflowEdits tests that invalid workflows deny non-hookflow edits
+func TestInvalidWorkflowDeniesNonHookflowEdits(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-invalid-deny-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create an invalid workflow (unknown field)
+	invalidWorkflow := `name: invalid
+on:
+  file:
+    unknown_field: true
+steps:
+  - run: echo test
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "invalid.yml"), []byte(invalidWorkflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Use runMatchingWorkflowsWithEvent directly with a file event for non-hookflow file
+	evt := &schema.Event{
+		File: &schema.FileEvent{
+			Path:   "src/main.go",
+			Action: "edit",
+		},
+		Cwd: tmpDir,
+	}
+
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+	_ = stdoutW.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(stdoutR)
+	output := buf.String()
+
+	// Should deny because workflow is invalid
+	if !strings.Contains(output, "deny") {
+		t.Errorf("Expected deny for invalid workflow, got: %s", output)
+	}
+	if !strings.Contains(output, "Invalid workflow") {
+		t.Errorf("Expected 'Invalid workflow' in reason, got: %s", output)
+	}
+}
+
+// TestInvalidWorkflowAllowsSelfRepair tests that invalid workflows allow edits to .github/hooks/
+func TestInvalidWorkflowAllowsSelfRepair(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-self-repair-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create an invalid workflow
+	invalidWorkflow := `name: invalid
+on:
+  file:
+    unknown_field: true
+steps:
+  - run: echo test
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "invalid.yml"), []byte(invalidWorkflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Use runMatchingWorkflowsWithEvent directly - editing the hookflow workflow itself
+	evt := &schema.Event{
+		File: &schema.FileEvent{
+			Path:   ".github/hooks/invalid.yml",
+			Action: "edit",
+		},
+		Cwd: tmpDir,
+	}
+
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+	_ = stdoutW.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(stdoutR)
+	output := buf.String()
+
+	// Should allow because it's a self-repair edit to .github/hooks/
+	if !strings.Contains(output, "allow") {
+		t.Errorf("Expected allow for self-repair edit, got: %s", output)
+	}
+	if !strings.Contains(output, "self-repair") {
+		t.Errorf("Expected 'self-repair' in reason, got: %s", output)
+	}
+}
+
+// TestFileTriggerWithActionsMatches tests that file trigger with 'actions' field matches correctly
+func TestFileTriggerWithActionsMatches(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-file-actions-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create workflow using 'actions' (alias for 'types')
+	workflow := `name: Block plugin.json edits
+on:
+  file:
+    paths:
+      - 'plugin.json'
+    actions:
+      - edit
+blocking: true
+steps:
+  - name: Block edit
+    run: |
+      echo "Blocking edit to plugin.json"
+      exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "block-plugin.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create event for editing plugin.json
+	evt := &schema.Event{
+		File: &schema.FileEvent{
+			Path:   "plugin.json",
+			Action: "edit",
+		},
+		Cwd: tmpDir,
+	}
+
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+	_ = stdoutW.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(stdoutR)
+	output := buf.String()
+
+	// Should deny because workflow matches and step exits 1
+	if !strings.Contains(output, "deny") {
+		t.Errorf("Expected deny when workflow matches file edit, got: %s", output)
+	}
+	if !strings.Contains(output, "Block plugin.json edits") {
+		t.Errorf("Expected workflow name in output, got: %s", output)
+	}
+}
+
+// TestFileTriggerWithTypesMatches tests that file trigger with 'types' field matches correctly
+func TestFileTriggerWithTypesMatches(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-file-types-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create workflow using 'types' (original field name)
+	workflow := `name: Block config edits
+on:
+  file:
+    paths:
+      - 'config.json'
+    types:
+      - edit
+      - create
+blocking: true
+steps:
+  - name: Block
+    run: exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "block-config.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create event
+	evt := &schema.Event{
+		File: &schema.FileEvent{
+			Path:   "config.json",
+			Action: "edit",
+		},
+		Cwd: tmpDir,
+	}
+
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+	_ = stdoutW.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(stdoutR)
+	output := buf.String()
+
+	// Should deny
+	if !strings.Contains(output, "deny") {
+		t.Errorf("Expected deny when workflow matches, got: %s", output)
+	}
+}
+
+// TestFileTriggerNoMatchWrongAction tests that file trigger doesn't match wrong action
+func TestFileTriggerNoMatchWrongAction(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-file-nomatch-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create workflow that only matches 'create' action
+	workflow := `name: Block creates only
+on:
+  file:
+    paths:
+      - '**/*.json'
+    actions:
+      - create
+blocking: true
+steps:
+  - name: Block
+    run: exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "block-create.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create event with 'edit' action - should NOT match workflow that only wants 'create'
+	evt := &schema.Event{
+		File: &schema.FileEvent{
+			Path:   "test.json",
+			Action: "edit",
+		},
+		Cwd: tmpDir,
+	}
+
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+	_ = stdoutW.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(stdoutR)
+	output := buf.String()
+
+	// Should allow because action doesn't match (edit vs create)
+	if !strings.Contains(output, "allow") {
+		t.Errorf("Expected allow when action doesn't match, got: %s", output)
+	}
+}
