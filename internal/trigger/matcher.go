@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/htekdev/gh-hookflow/internal/logging"
 	"github.com/htekdev/gh-hookflow/internal/schema"
 )
 
@@ -19,19 +20,25 @@ func NewMatcher(workflow *schema.Workflow) *Matcher {
 
 // Match checks if the event matches any of the workflow's triggers
 func (m *Matcher) Match(event *schema.Event) bool {
+	log := logging.Context("trigger")
 	on := m.workflow.On
+	workflowName := m.workflow.Name
 
 	// Check tool trigger (most specific)
 	if on.Tool != nil && event.Tool != nil {
+		log.Debug("[%s] checking tool trigger for tool=%s", workflowName, event.Tool.Name)
 		if m.matchToolTrigger(on.Tool, event.Tool) {
+			log.Debug("[%s] tool trigger matched", workflowName)
 			return true
 		}
 	}
 
 	// Check tools array
 	if len(on.Tools) > 0 && event.Tool != nil {
-		for _, toolTrigger := range on.Tools {
+		log.Debug("[%s] checking %d tools triggers", workflowName, len(on.Tools))
+		for i, toolTrigger := range on.Tools {
 			if m.matchToolTrigger(&toolTrigger, event.Tool) {
+				log.Debug("[%s] tools[%d] trigger matched", workflowName, i)
 				return true
 			}
 		}
@@ -39,32 +46,41 @@ func (m *Matcher) Match(event *schema.Event) bool {
 
 	// Check hooks trigger
 	if on.Hooks != nil && event.Hook != nil {
+		log.Debug("[%s] checking hooks trigger", workflowName)
 		if m.matchHooksTrigger(on.Hooks, event.Hook) {
+			log.Debug("[%s] hooks trigger matched", workflowName)
 			return true
 		}
 	}
 
 	// Check file trigger
 	if on.File != nil && event.File != nil {
+		log.Debug("[%s] checking file trigger for path=%s", workflowName, event.File.Path)
 		if m.matchFileTrigger(on.File, event.File, event.GetLifecycle()) {
+			log.Debug("[%s] file trigger matched", workflowName)
 			return true
 		}
 	}
 
 	// Check commit trigger
 	if on.Commit != nil && event.Commit != nil {
+		log.Debug("[%s] checking commit trigger", workflowName)
 		if m.matchCommitTrigger(on.Commit, event.Commit, event.GetLifecycle()) {
+			log.Debug("[%s] commit trigger matched", workflowName)
 			return true
 		}
 	}
 
 	// Check push trigger
 	if on.Push != nil && event.Push != nil {
+		log.Debug("[%s] checking push trigger", workflowName)
 		if m.matchPushTrigger(on.Push, event.Push, event.GetLifecycle()) {
+			log.Debug("[%s] push trigger matched", workflowName)
 			return true
 		}
 	}
 
+	log.Debug("[%s] no triggers matched", workflowName)
 	return false
 }
 
@@ -126,8 +142,11 @@ func (m *Matcher) matchHooksTrigger(trigger *schema.HooksTrigger, event *schema.
 
 // matchFileTrigger checks if a file event matches a file trigger
 func (m *Matcher) matchFileTrigger(trigger *schema.FileTrigger, event *schema.FileEvent, eventLifecycle string) bool {
+	log := logging.Context("trigger")
+
 	// Check lifecycle first
 	if trigger.GetLifecycle() != eventLifecycle {
+		log.Debug("lifecycle mismatch: trigger=%s, event=%s", trigger.GetLifecycle(), eventLifecycle)
 		return false
 	}
 
@@ -141,6 +160,7 @@ func (m *Matcher) matchFileTrigger(trigger *schema.FileTrigger, event *schema.Fi
 			}
 		}
 		if !found {
+			log.Debug("action %s not in types %v", event.Action, trigger.Types)
 			return false
 		}
 	}
@@ -149,6 +169,7 @@ func (m *Matcher) matchFileTrigger(trigger *schema.FileTrigger, event *schema.Fi
 	if len(trigger.PathsIgnore) > 0 {
 		for _, pattern := range trigger.PathsIgnore {
 			if matchGlob(pattern, event.Path) {
+				log.Debug("path %s matches paths-ignore pattern %s", event.Path, pattern)
 				return false
 			}
 		}
@@ -161,17 +182,21 @@ func (m *Matcher) matchFileTrigger(trigger *schema.FileTrigger, event *schema.Fi
 			// Handle negation
 			if strings.HasPrefix(pattern, "!") {
 				if matchGlob(pattern[1:], event.Path) {
+					log.Debug("path %s matches negation pattern %s", event.Path, pattern)
 					matched = false
 				}
 			} else if matchGlob(pattern, event.Path) {
+				log.Debug("path %s matches pattern %s", event.Path, pattern)
 				matched = true
 			}
 		}
 		if !matched {
+			log.Debug("path %s did not match any of %d patterns", event.Path, len(trigger.Paths))
 			return false
 		}
 	}
 
+	log.Debug("file trigger matched for path=%s", event.Path)
 	return true
 }
 

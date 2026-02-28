@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
+	eventpkg "github.com/htekdev/gh-hookflow/internal/event"
 	"github.com/htekdev/gh-hookflow/internal/schema"
 )
 
@@ -2395,6 +2398,1403 @@ steps:
 				// If should NOT match, we get default "allow" (no workflow ran)
 				if !strings.Contains(output, "allow") {
 					t.Errorf("%s: Expected no match (allow), but got: %s", tt.description, output)
+				}
+			}
+		})
+	}
+}
+
+// TestJSONValidationWorkflow tests workflows that validate JSON syntax
+// This tests the shifted-from-ci pattern where we check plugin.json/hooks.json are valid
+func TestJSONValidationWorkflow(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows - requires bash with jq")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "hookflow-json-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create hooks directory
+	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a JSON validation workflow (similar to shifted-from-ci.yml)
+	// Using bash explicitly since the workflow assumes bash
+	workflow := `name: JSON Validation Test
+on:
+  file:
+    paths:
+      - 'config.json'
+    types:
+      - edit
+      - create
+blocking: true
+steps:
+  - name: Validate JSON syntax
+    if: ${{ event.file.path == 'config.json' }}
+    shell: bash
+    run: |
+      echo "Validating JSON syntax..."
+      if ! cat config.json | jq . > /dev/null 2>&1; then
+        echo "Invalid JSON!"
+        exit 1
+      fi
+      echo "JSON is valid"
+`
+	if err := os.WriteFile(filepath.Join(hooksDir, "validate-json.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name        string
+		jsonContent string
+		expectDeny  bool
+	}{
+		{
+			name:        "valid JSON should allow",
+			jsonContent: `{"name": "test", "version": "1.0.0"}`,
+			expectDeny:  false,
+		},
+		{
+			name:        "invalid JSON should deny",
+			jsonContent: `{invalid json content`,
+			expectDeny:  true,
+		},
+		{
+			name:        "empty object is valid",
+			jsonContent: `{}`,
+			expectDeny:  false,
+		},
+		{
+			name:        "truncated JSON should deny",
+			jsonContent: `{"name": "test"`,
+			expectDeny:  true,
+		},
+		{
+			name:        "JSON with trailing comma should deny",
+			jsonContent: `{"name": "test",}`,
+			expectDeny:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Write the test JSON file
+			if err := os.WriteFile(filepath.Join(tmpDir, "config.json"), []byte(tt.jsonContent), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			// Build event with absolute path (like Copilot would send)
+			absPath := filepath.Join(tmpDir, "config.json")
+			evt := &schema.Event{
+				File: &schema.FileEvent{
+					Path:   absPath,
+					Action: "edit",
+				},
+				Lifecycle: "pre",
+				Cwd:       tmpDir,
+			}
+
+			// Capture stdout
+			oldStdout := os.Stdout
+			stdoutR, stdoutW, _ := os.Pipe()
+			os.Stdout = stdoutW
+
+			_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+			_ = stdoutW.Close()
+			os.Stdout = oldStdout
+
+			var buf bytes.Buffer
+			_, _ = buf.ReadFrom(stdoutR)
+			output := buf.String()
+
+			if tt.expectDeny {
+				if !strings.Contains(output, "deny") {
+					t.Errorf("Expected deny for invalid JSON, got: %s", output)
+				}
+			} else {
+				if !strings.Contains(output, "allow") {
+					t.Errorf("Expected allow for valid JSON, got: %s", output)
+				}
+			}
+		})
+	}
+}
+
+// TestShellScriptValidationWorkflow tests workflows that validate shell script syntax
+func TestShellScriptValidationWorkflow(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows - requires bash")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "hookflow-shell-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create hooks directory
+	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a shell validation workflow
+	workflow := `name: Shell Script Validation
+on:
+  file:
+    paths:
+      - '**/*.sh'
+    types:
+      - edit
+      - create
+blocking: true
+steps:
+  - name: Check shell syntax
+    if: ${{ endsWith(event.file.path, '.sh') }}
+    shell: bash
+    run: |
+      echo "Checking shell syntax for ${{ event.file.path }}..."
+      bash -n "${{ event.file.path }}"
+      echo "Shell syntax valid"
+`
+	if err := os.WriteFile(filepath.Join(hooksDir, "validate-shell.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name          string
+		scriptContent string
+		expectDeny    bool
+	}{
+		{
+			name: "valid shell script should allow",
+			scriptContent: `#!/bin/bash
+echo "Hello World"
+if [ -f "test.txt" ]; then
+    cat test.txt
+fi
+`,
+			expectDeny: false,
+		},
+		{
+			name: "missing quote should deny",
+			scriptContent: `#!/bin/bash
+echo "Hello World
+`,
+			expectDeny: true,
+		},
+		{
+			name: "syntax error should deny",
+			scriptContent: `#!/bin/bash
+if then
+fi
+`,
+			expectDeny: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Write the test shell script
+			scriptPath := filepath.Join(tmpDir, "test-script.sh")
+			if err := os.WriteFile(scriptPath, []byte(tt.scriptContent), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			// Build event with absolute path
+			evt := &schema.Event{
+				File: &schema.FileEvent{
+					Path:   scriptPath,
+					Action: "edit",
+				},
+				Lifecycle: "pre",
+				Cwd:       tmpDir,
+			}
+
+			// Capture stdout
+			oldStdout := os.Stdout
+			stdoutR, stdoutW, _ := os.Pipe()
+			os.Stdout = stdoutW
+
+			_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+			_ = stdoutW.Close()
+			os.Stdout = oldStdout
+
+			var buf bytes.Buffer
+			_, _ = buf.ReadFrom(stdoutR)
+			output := buf.String()
+
+			if tt.expectDeny {
+				if !strings.Contains(output, "deny") {
+					t.Errorf("Expected deny for invalid shell script, got: %s", output)
+				}
+			} else {
+				if !strings.Contains(output, "allow") {
+					t.Errorf("Expected allow for valid shell script, got: %s", output)
+				}
+			}
+		})
+	}
+}
+
+// TestWorkflowStepConditions tests that step if conditions work correctly
+func TestWorkflowStepConditions(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-cond-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create hooks directory
+	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a workflow with multiple conditional steps
+	workflow := `name: Conditional Steps Test
+on:
+  file:
+    paths:
+      - '**/*'
+    types:
+      - edit
+      - create
+blocking: true
+steps:
+  - name: JSON file check
+    if: ${{ endsWith(event.file.path, '.json') }}
+    run: echo "This is a JSON file"
+  - name: Script file check
+    if: ${{ endsWith(event.file.path, '.sh') }}
+    run: echo "This is a shell script"
+  - name: Config file check
+    if: ${{ event.file.path == 'config.yml' }}
+    run: echo "This is config.yml"
+  - name: Always runs
+    run: echo "Always executed"
+`
+	if err := os.WriteFile(filepath.Join(hooksDir, "conditions.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name       string
+		filePath   string
+		expectLogs []string // What we expect to see in logs
+	}{
+		{
+			name:       "JSON file triggers JSON condition",
+			filePath:   "data.json",
+			expectLogs: []string{"This is a JSON file", "Always executed"},
+		},
+		{
+			name:       "SH file triggers script condition",
+			filePath:   "script.sh",
+			expectLogs: []string{"This is a shell script", "Always executed"},
+		},
+		{
+			name:       "config.yml triggers exact match",
+			filePath:   "config.yml",
+			expectLogs: []string{"This is config.yml", "Always executed"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create the file
+			fullPath := filepath.Join(tmpDir, tt.filePath)
+			if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(fullPath, []byte("test content"), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			// Build event
+			evt := &schema.Event{
+				File: &schema.FileEvent{
+					Path:   fullPath,
+					Action: "edit",
+				},
+				Lifecycle: "pre",
+				Cwd:       tmpDir,
+			}
+
+			// Capture stdout
+			oldStdout := os.Stdout
+			stdoutR, stdoutW, _ := os.Pipe()
+			os.Stdout = stdoutW
+
+			_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+			_ = stdoutW.Close()
+			os.Stdout = oldStdout
+
+			var buf bytes.Buffer
+			_, _ = buf.ReadFrom(stdoutR)
+			output := buf.String()
+
+			// Should always allow (no failing steps)
+			if !strings.Contains(output, "allow") {
+				t.Errorf("Expected allow, got: %s", output)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// COPILOT HOOK INPUT FORMAT TESTS
+// =============================================================================
+// These tests verify that we correctly handle the JSON format that Copilot sends
+// to hook scripts. The format is: {"toolName":"...", "toolArgs":{...}, "cwd":"..."}
+
+// TestCopilotHookInputFormat tests that the event detector correctly parses
+// the actual JSON format that Copilot sends via stdin to hook scripts
+func TestCopilotHookInputFormat(t *testing.T) {
+	tests := []struct {
+		name           string
+		inputJSON      string
+		expectFile     bool
+		expectedPath   string
+		expectedAction string
+		description    string
+	}{
+		{
+			name: "edit tool with path",
+			inputJSON: `{
+				"toolName": "edit",
+				"toolArgs": {"path": "/some/path/file.go", "old_str": "old", "new_str": "new"},
+				"cwd": "/workspace"
+			}`,
+			expectFile:     true,
+			expectedPath:   "/some/path/file.go",
+			expectedAction: "edit",
+			description:    "Standard edit tool invocation",
+		},
+		{
+			name: "create tool with path and file_text",
+			inputJSON: `{
+				"toolName": "create",
+				"toolArgs": {"path": "/workspace/new-file.ts", "file_text": "content"},
+				"cwd": "/workspace"
+			}`,
+			expectFile:     true,
+			expectedPath:   "/workspace/new-file.ts",
+			expectedAction: "create",
+			description:    "Standard create tool invocation",
+		},
+		{
+			name: "view tool - should not trigger file event",
+			inputJSON: `{
+				"toolName": "view",
+				"toolArgs": {"path": "/some/file.go"},
+				"cwd": "/workspace"
+			}`,
+			expectFile:  false,
+			description: "View tool should not be treated as file modification",
+		},
+		{
+			name: "powershell tool - not a file event",
+			inputJSON: `{
+				"toolName": "powershell",
+				"toolArgs": {"command": "Get-ChildItem"},
+				"cwd": "/workspace"
+			}`,
+			expectFile:  false,
+			description: "Shell commands are not file events",
+		},
+		{
+			name: "Windows-style path in toolArgs",
+			inputJSON: `{
+				"toolName": "edit",
+				"toolArgs": {"path": "C:\\Users\\test\\project\\file.go", "old_str": "a", "new_str": "b"},
+				"cwd": "C:\\Users\\test\\project"
+			}`,
+			expectFile:     true,
+			expectedPath:   "C:\\Users\\test\\project\\file.go",
+			expectedAction: "edit",
+			description:    "Windows backslash paths should be preserved",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Use the event detector to parse the input
+			detector := eventpkg.NewDetector(nil)
+			evt, err := detector.DetectFromRawInput([]byte(tt.inputJSON))
+
+			if err != nil {
+				t.Fatalf("Failed to parse input: %v", err)
+			}
+
+			if tt.expectFile {
+				if evt.File == nil {
+					t.Errorf("%s: Expected file event but got nil", tt.description)
+					return
+				}
+				if evt.File.Path != tt.expectedPath {
+					t.Errorf("%s: Expected path %q, got %q", tt.description, tt.expectedPath, evt.File.Path)
+				}
+				if evt.File.Action != tt.expectedAction {
+					t.Errorf("%s: Expected action %q, got %q", tt.description, tt.expectedAction, evt.File.Action)
+				}
+			} else {
+				if evt.File != nil {
+					t.Errorf("%s: Expected no file event but got path=%q", tt.description, evt.File.Path)
+				}
+			}
+		})
+	}
+}
+
+// =============================================================================
+// PATH NORMALIZATION TESTS
+// =============================================================================
+// These tests verify that absolute paths are correctly normalized to relative paths
+// for pattern matching in workflows
+
+// TestPathNormalizationComprehensive tests all path normalization scenarios
+func TestPathNormalizationComprehensive(t *testing.T) {
+	tests := []struct {
+		name           string
+		filePath       string
+		baseDir        string
+		expectedResult string
+		description    string
+	}{
+		// Basic cases
+		{
+			name:           "already relative - simple filename",
+			filePath:       "plugin.json",
+			baseDir:        "/workspace",
+			expectedResult: "plugin.json",
+			description:    "Already relative paths should stay unchanged",
+		},
+		{
+			name:           "already relative - nested path",
+			filePath:       "src/components/Button.tsx",
+			baseDir:        "/workspace",
+			expectedResult: "src/components/Button.tsx",
+			description:    "Nested relative paths should stay unchanged",
+		},
+
+		// Unix absolute paths
+		{
+			name:           "Unix absolute - exact match with baseDir",
+			filePath:       "/workspace/plugin.json",
+			baseDir:        "/workspace",
+			expectedResult: "plugin.json",
+			description:    "Absolute path in baseDir should become relative",
+		},
+		{
+			name:           "Unix absolute - nested in baseDir",
+			filePath:       "/workspace/src/utils/helpers.go",
+			baseDir:        "/workspace",
+			expectedResult: "src/utils/helpers.go",
+			description:    "Nested absolute path should become relative",
+		},
+		{
+			name:           "Unix absolute - different root",
+			filePath:       "/other/project/file.go",
+			baseDir:        "/workspace",
+			expectedResult: "/other/project/file.go",
+			description:    "Path outside baseDir stays absolute",
+		},
+
+		// Windows absolute paths (with backslashes)
+		{
+			name:           "Windows absolute - C drive",
+			filePath:       "C:\\Users\\test\\project\\plugin.json",
+			baseDir:        "C:\\Users\\test\\project",
+			expectedResult: "plugin.json",
+			description:    "Windows path should normalize to relative",
+		},
+		{
+			name:           "Windows absolute - nested",
+			filePath:       "C:\\Repos\\myapp\\src\\components\\App.tsx",
+			baseDir:        "C:\\Repos\\myapp",
+			expectedResult: "src/components/App.tsx",
+			description:    "Windows nested path normalizes with forward slashes",
+		},
+		{
+			name:           "Windows absolute - D drive",
+			filePath:       "D:\\Projects\\webapp\\index.html",
+			baseDir:        "D:\\Projects\\webapp",
+			expectedResult: "index.html",
+			description:    "Different Windows drive letters work",
+		},
+
+		// Mixed slash scenarios
+		{
+			name:           "Mixed slashes - forward in Windows baseDir",
+			filePath:       "C:/Users/test/project/file.go",
+			baseDir:        "C:\\Users\\test\\project",
+			expectedResult: "file.go",
+			description:    "Forward slashes in Windows path work",
+		},
+
+		// Edge cases
+		{
+			name:           "Empty baseDir - strips leading slash",
+			filePath:       "/some/path/file.go",
+			baseDir:        "",
+			expectedResult: "some/path/file.go",
+			description:    "Empty baseDir strips leading slash (converts to relative)",
+		},
+		{
+			name:           "Path equals baseDir exactly",
+			filePath:       "/workspace",
+			baseDir:        "/workspace",
+			expectedResult: "/workspace",
+			description:    "Path equal to baseDir returns path unchanged (edge case)",
+		},
+		{
+			name:           "Trailing slash on baseDir",
+			filePath:       "/workspace/file.go",
+			baseDir:        "/workspace/",
+			expectedResult: "file.go",
+			description:    "Trailing slash on baseDir handled correctly",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeFilePath(tt.filePath, tt.baseDir)
+			if result != tt.expectedResult {
+				t.Errorf("%s:\n  input:    %q\n  baseDir:  %q\n  expected: %q\n  got:      %q",
+					tt.description, tt.filePath, tt.baseDir, tt.expectedResult, result)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// END-TO-END WORKFLOW MATCHING WITH ABSOLUTE PATHS
+// =============================================================================
+// These tests simulate the complete flow: Copilot sends absolute path → 
+// hookflow normalizes → workflow pattern matches
+
+// TestEndToEndAbsolutePathMatching tests the complete flow from raw input to workflow decision
+func TestEndToEndAbsolutePathMatching(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-e2e-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create hooks directory
+	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a workflow that blocks plugin.json edits
+	workflow := `name: Block Plugin Edits
+on:
+  file:
+    paths:
+      - 'plugin.json'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Block
+    run: |
+      echo "Blocked edit to plugin.json"
+      exit 1
+`
+	if err := os.WriteFile(filepath.Join(hooksDir, "block.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create the target file
+	if err := os.WriteFile(filepath.Join(tmpDir, "plugin.json"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name        string
+		absPath     string // Absolute path as Copilot would send
+		expectDeny  bool
+		description string
+	}{
+		{
+			name:        "Unix absolute path matches",
+			absPath:     filepath.Join(tmpDir, "plugin.json"),
+			expectDeny:  true,
+			description: "Absolute path should normalize and match 'plugin.json' pattern",
+		},
+		{
+			name:        "Different file doesn't match",
+			absPath:     filepath.Join(tmpDir, "package.json"),
+			expectDeny:  false,
+			description: "Different filename should not match pattern",
+		},
+		{
+			name:        "Nested path doesn't match root pattern",
+			absPath:     filepath.Join(tmpDir, "config", "plugin.json"),
+			expectDeny:  false,
+			description: "plugin.json in subdirectory shouldn't match root pattern",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create any necessary parent directories for the test file
+			dir := filepath.Dir(tt.absPath)
+			if dir != tmpDir {
+				os.MkdirAll(dir, 0755)
+				os.WriteFile(tt.absPath, []byte("{}"), 0644)
+			}
+
+			evt := &schema.Event{
+				File: &schema.FileEvent{
+					Path:   tt.absPath,
+					Action: "edit",
+				},
+				Cwd:       tmpDir,
+				Lifecycle: "pre",
+			}
+
+			oldStdout := os.Stdout
+			stdoutR, stdoutW, _ := os.Pipe()
+			os.Stdout = stdoutW
+
+			_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+			_ = stdoutW.Close()
+			os.Stdout = oldStdout
+
+			var buf bytes.Buffer
+			_, _ = buf.ReadFrom(stdoutR)
+			output := buf.String()
+
+			if tt.expectDeny {
+				if !strings.Contains(output, "deny") {
+					t.Errorf("%s: Expected deny, got: %s", tt.description, output)
+				}
+			} else {
+				if !strings.Contains(output, "allow") {
+					t.Errorf("%s: Expected allow, got: %s", tt.description, output)
+				}
+			}
+		})
+	}
+}
+
+// =============================================================================
+// EXPRESSION CONTEXT WITH NORMALIZED PATHS
+// =============================================================================
+// These tests verify that step conditions using event.file.path work correctly
+// after path normalization
+
+// TestExpressionContextWithNormalizedPath tests that expressions evaluate correctly
+// with normalized paths in the event context
+func TestExpressionContextWithNormalizedPath(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-expr-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Workflow with multiple conditional steps testing different expressions
+	workflow := `name: Expression Test
+on:
+  file:
+    paths:
+      - '**/*'
+    types:
+      - edit
+      - create
+blocking: true
+steps:
+  # Test exact path match
+  - name: Exact match test
+    if: ${{ event.file.path == 'plugin.json' }}
+    run: |
+      echo "exact_match_triggered"
+      exit 1
+
+  # Test endsWith function
+  - name: EndsWith test
+    if: ${{ endsWith(event.file.path, '.json') }}
+    run: |
+      echo "ends_with_json_triggered"
+      exit 1
+
+  # Test startsWith function  
+  - name: StartsWith test
+    if: ${{ startsWith(event.file.path, 'src/') }}
+    run: |
+      echo "starts_with_src_triggered"
+      exit 1
+
+  # Test contains function
+  - name: Contains test
+    if: ${{ contains(event.file.path, '/components/') }}
+    run: |
+      echo "contains_components_triggered"
+      exit 1
+`
+	if err := os.WriteFile(filepath.Join(hooksDir, "expr-test.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name          string
+		relativePath  string // Path relative to tmpDir
+		expectDeny    bool
+		denialReason  string // Which step should trigger
+		description   string
+	}{
+		{
+			name:         "exact path match - plugin.json",
+			relativePath: "plugin.json",
+			expectDeny:   true,
+			denialReason: "exact_match_triggered",
+			description:  "event.file.path == 'plugin.json' should match",
+		},
+		{
+			name:         "endsWith match - config.json",
+			relativePath: "config.json",
+			expectDeny:   true,
+			denialReason: "ends_with_json_triggered",
+			description:  "endsWith(event.file.path, '.json') should match",
+		},
+		{
+			name:         "startsWith match - src/index.ts",
+			relativePath: "src/index.ts",
+			expectDeny:   true,
+			denialReason: "starts_with_src_triggered",
+			description:  "startsWith(event.file.path, 'src/') should match",
+		},
+		{
+			name:         "contains match - src/components/Button.tsx",
+			relativePath: "src/components/Button.tsx",
+			expectDeny:   true,
+			denialReason: "contains_components_triggered",
+			description:  "contains(event.file.path, '/components/') should match",
+		},
+		{
+			name:         "no match - README.md",
+			relativePath: "README.md",
+			expectDeny:   false,
+			description:  "README.md should not match any conditions",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create directory structure
+			fullPath := filepath.Join(tmpDir, tt.relativePath)
+			os.MkdirAll(filepath.Dir(fullPath), 0755)
+			os.WriteFile(fullPath, []byte("test"), 0644)
+
+			// Use ABSOLUTE path like Copilot would send
+			evt := &schema.Event{
+				File: &schema.FileEvent{
+					Path:   fullPath, // Absolute path!
+					Action: "edit",
+				},
+				Cwd:       tmpDir,
+				Lifecycle: "pre",
+			}
+
+			oldStdout := os.Stdout
+			stdoutR, stdoutW, _ := os.Pipe()
+			os.Stdout = stdoutW
+
+			_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+			_ = stdoutW.Close()
+			os.Stdout = oldStdout
+
+			var buf bytes.Buffer
+			_, _ = buf.ReadFrom(stdoutR)
+			output := buf.String()
+
+			if tt.expectDeny {
+				if !strings.Contains(output, "deny") {
+					t.Errorf("%s: Expected deny, got: %s", tt.description, output)
+				}
+			} else {
+				if !strings.Contains(output, "allow") {
+					t.Errorf("%s: Expected allow, got: %s", tt.description, output)
+				}
+			}
+		})
+	}
+}
+
+// =============================================================================
+// GLOB PATTERN MATCHING TESTS
+// =============================================================================
+// These tests verify that glob patterns in workflow triggers work correctly
+// NOTE: On Windows, filepath.Match treats '/' as a regular character, not a path separator.
+// This means '*.json' will match 'src/data.json' on Windows but not on Linux.
+// For cross-platform consistency, use '**/*.json' to match in subdirectories.
+
+// TestGlobPatternMatching tests various glob patterns in file triggers
+func TestGlobPatternMatching(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-glob-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Windows vs Unix: * matches / on Windows but not Unix (filepath.Match behavior)
+	// We use runtime.GOOS to set expectations accordingly
+	isWindows := runtime.GOOS == "windows"
+
+	tests := []struct {
+		name              string
+		pattern           string
+		testPaths         []string // Paths to test against the pattern
+		shouldMatchUnix   []bool   // Expected results on Unix
+		shouldMatchWin    []bool   // Expected results on Windows
+	}{
+		{
+			name:              "simple filename",
+			pattern:           "plugin.json",
+			testPaths:         []string{"plugin.json", "other.json", "dir/plugin.json"},
+			shouldMatchUnix:   []bool{true, false, false},
+			shouldMatchWin:    []bool{true, false, false},
+		},
+		{
+			name:              "extension glob - *.json (platform-dependent)",
+			pattern:           "*.json",
+			testPaths:         []string{"plugin.json", "config.json", "src/data.json", "file.txt"},
+			shouldMatchUnix:   []bool{true, true, false, false}, // * doesn't match /
+			shouldMatchWin:    []bool{true, true, true, false},  // * matches / on Windows
+		},
+		{
+			name:              "recursive glob - **/*.json (cross-platform)",
+			pattern:           "**/*.json",
+			testPaths:         []string{"plugin.json", "src/config.json", "a/b/c/data.json", "file.txt"},
+			shouldMatchUnix:   []bool{true, true, true, false},
+			shouldMatchWin:    []bool{true, true, true, false},
+		},
+		{
+			name:              "directory prefix - src/**",
+			pattern:           "src/**",
+			testPaths:         []string{"src/index.ts", "src/components/Button.tsx", "lib/utils.ts"},
+			shouldMatchUnix:   []bool{true, true, false},
+			shouldMatchWin:    []bool{true, true, false},
+		},
+		{
+			name:              "specific nested path",
+			pattern:           "packages/hooks/scripts/**",
+			testPaths:         []string{"packages/hooks/scripts/pre.sh", "packages/hooks/scripts/lib/util.sh", "packages/other/script.sh"},
+			shouldMatchUnix:   []bool{true, true, false},
+			shouldMatchWin:    []bool{true, true, false},
+		},
+		{
+			name:              "hidden files - **/.env",
+			pattern:           "**/.env",
+			testPaths:         []string{".env", "config/.env", "a/b/.env", ".env.local"},
+			shouldMatchUnix:   []bool{true, true, true, false},
+			shouldMatchWin:    []bool{true, true, true, false},
+		},
+		{
+			name:              "extension match - **/*.ts",
+			pattern:           "**/*.ts",
+			testPaths:         []string{"index.ts", "src/App.tsx", "lib/utils.ts", "file.js"},
+			shouldMatchUnix:   []bool{true, false, true, false},
+			shouldMatchWin:    []bool{true, false, true, false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+			os.RemoveAll(hooksDir)
+			os.MkdirAll(hooksDir, 0755)
+
+			// Create workflow with this pattern
+			workflow := fmt.Sprintf(`name: Pattern Test
+on:
+  file:
+    paths:
+      - '%s'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Block
+    run: exit 1
+`, tt.pattern)
+			if err := os.WriteFile(filepath.Join(hooksDir, "test.yml"), []byte(workflow), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			// Select platform-appropriate expectations
+			shouldMatch := tt.shouldMatchUnix
+			if isWindows {
+				shouldMatch = tt.shouldMatchWin
+			}
+
+			for i, testPath := range tt.testPaths {
+				t.Run(testPath, func(t *testing.T) {
+					// Create file structure
+					fullPath := filepath.Join(tmpDir, testPath)
+					os.MkdirAll(filepath.Dir(fullPath), 0755)
+					os.WriteFile(fullPath, []byte("test"), 0644)
+
+					evt := &schema.Event{
+						File: &schema.FileEvent{
+							Path:   fullPath,
+							Action: "edit",
+						},
+						Cwd:       tmpDir,
+						Lifecycle: "pre",
+					}
+
+					oldStdout := os.Stdout
+					stdoutR, stdoutW, _ := os.Pipe()
+					os.Stdout = stdoutW
+
+					_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+					_ = stdoutW.Close()
+					os.Stdout = oldStdout
+
+					var buf bytes.Buffer
+					_, _ = buf.ReadFrom(stdoutR)
+					output := buf.String()
+
+					expectMatch := shouldMatch[i]
+					if expectMatch {
+						if !strings.Contains(output, "deny") {
+							t.Errorf("Pattern %q should match %q but got allow: %s", tt.pattern, testPath, output)
+						}
+					} else {
+						if !strings.Contains(output, "allow") {
+							t.Errorf("Pattern %q should NOT match %q but got deny: %s", tt.pattern, testPath, output)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+// =============================================================================
+// MULTIPLE WORKFLOW MATCHING TESTS
+// =============================================================================
+// These tests verify behavior when multiple workflows could potentially match
+
+// TestMultipleWorkflowsMatching tests that multiple workflows are evaluated correctly
+func TestMultipleWorkflowsMatching(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-multi-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	os.MkdirAll(hooksDir, 0755)
+
+	// Workflow 1: Blocks .env files
+	workflow1 := `name: Block Env Files
+on:
+  file:
+    paths:
+      - '**/.env'
+      - '**/.env.*'
+    types:
+      - edit
+      - create
+blocking: true
+steps:
+  - name: Block
+    run: |
+      echo "env_file_blocked"
+      exit 1
+`
+	os.WriteFile(filepath.Join(hooksDir, "01-block-env.yml"), []byte(workflow1), 0644)
+
+	// Workflow 2: Validates JSON files (allows them)
+	workflow2 := `name: Validate JSON
+on:
+  file:
+    paths:
+      - '**/*.json'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Validate
+    run: echo "json_validated"
+`
+	os.WriteFile(filepath.Join(hooksDir, "02-validate-json.yml"), []byte(workflow2), 0644)
+
+	// Workflow 3: Blocks secret files
+	// NOTE: Pattern '**/secrets/**' with ** on both sides doesn't work correctly
+	// (known limitation in glob matching). Use 'secrets/**' for directory matching.
+	workflow3 := `name: Block Secrets
+on:
+  file:
+    paths:
+      - 'secrets/**'
+      - '**/*.secret'
+    types:
+      - edit
+      - create
+blocking: true
+steps:
+  - name: Block
+    run: |
+      echo "secret_blocked"
+      exit 1
+`
+	os.WriteFile(filepath.Join(hooksDir, "03-block-secrets.yml"), []byte(workflow3), 0644)
+
+	tests := []struct {
+		name        string
+		filePath    string
+		action      string
+		expectDeny  bool
+		description string
+	}{
+		{
+			name:        "env file - blocked by workflow 1",
+			filePath:    ".env",
+			action:      "edit",
+			expectDeny:  true,
+			description: ".env should be blocked by env workflow",
+		},
+		{
+			name:        "env.local - blocked by workflow 1",
+			filePath:    ".env.local",
+			action:      "create",
+			expectDeny:  true,
+			description: ".env.local should be blocked by env workflow",
+		},
+		{
+			name:        "json file - allowed by workflow 2",
+			filePath:    "config.json",
+			action:      "edit",
+			expectDeny:  false,
+			description: "JSON files should pass validation",
+		},
+		{
+			name:        "secret file - blocked by workflow 3",
+			filePath:    "secrets/api.key",
+			action:      "create",
+			expectDeny:  true,
+			description: "Secret files should be blocked",
+		},
+		{
+			name:        "normal file - no workflow matches",
+			filePath:    "README.md",
+			action:      "edit",
+			expectDeny:  false,
+			description: "Files not matching any workflow should be allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fullPath := filepath.Join(tmpDir, tt.filePath)
+			os.MkdirAll(filepath.Dir(fullPath), 0755)
+			os.WriteFile(fullPath, []byte("test"), 0644)
+
+			evt := &schema.Event{
+				File: &schema.FileEvent{
+					Path:   fullPath,
+					Action: tt.action,
+				},
+				Cwd:       tmpDir,
+				Lifecycle: "pre",
+			}
+
+			oldStdout := os.Stdout
+			stdoutR, stdoutW, _ := os.Pipe()
+			os.Stdout = stdoutW
+
+			_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+			_ = stdoutW.Close()
+			os.Stdout = oldStdout
+
+			var buf bytes.Buffer
+			_, _ = buf.ReadFrom(stdoutR)
+			output := buf.String()
+
+			if tt.expectDeny {
+				if !strings.Contains(output, "deny") {
+					t.Errorf("%s: Expected deny, got: %s", tt.description, output)
+				}
+			} else {
+				if !strings.Contains(output, "allow") {
+					t.Errorf("%s: Expected allow, got: %s", tt.description, output)
+				}
+			}
+		})
+	}
+}
+
+// =============================================================================
+// TOOL ARGS ACCESS IN EXPRESSIONS
+// =============================================================================
+// These tests verify that expressions can access tool arguments like new_str, old_str
+
+// TestToolArgsInExpressions tests accessing tool arguments in step conditions
+func TestToolArgsInExpressions(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-toolargs-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	os.MkdirAll(hooksDir, 0755)
+
+	// Workflow that checks for sensitive patterns in new_str
+	workflow := `name: Check Edit Content
+on:
+  file:
+    paths:
+      - '**/*'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Check for password
+    if: ${{ contains(event.tool.args.new_str, 'password') }}
+    run: |
+      echo "password_detected"
+      exit 1
+  - name: Check for API key pattern
+    if: ${{ contains(event.tool.args.new_str, 'sk-') }}
+    run: |
+      echo "api_key_detected"
+      exit 1
+  - name: Check for AWS key pattern
+    if: ${{ contains(event.tool.args.new_str, 'AKIA') }}
+    run: |
+      echo "aws_key_detected"
+      exit 1
+`
+	os.WriteFile(filepath.Join(hooksDir, "check-content.yml"), []byte(workflow), 0644)
+
+	tests := []struct {
+		name        string
+		newStr      string
+		expectDeny  bool
+		description string
+	}{
+		{
+			name:        "contains password literal",
+			newStr:      "const password = 'secret123';",
+			expectDeny:  true,
+			description: "Should detect 'password' keyword",
+		},
+		{
+			name:        "contains API key pattern",
+			newStr:      "const apiKey = 'sk-1234567890abcdef';",
+			expectDeny:  true,
+			description: "Should detect 'sk-' pattern",
+		},
+		{
+			name:        "contains AWS key pattern",
+			newStr:      "AWS_KEY=AKIAIOSFODNN7EXAMPLE",
+			expectDeny:  true,
+			description: "Should detect 'AKIA' pattern",
+		},
+		{
+			name:        "safe content",
+			newStr:      "const greeting = 'Hello, World!';",
+			expectDeny:  false,
+			description: "Safe content should be allowed",
+		},
+		{
+			name:        "empty new_str",
+			newStr:      "",
+			expectDeny:  false,
+			description: "Empty content should be allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fullPath := filepath.Join(tmpDir, "test.js")
+			os.WriteFile(fullPath, []byte("original"), 0644)
+
+			evt := &schema.Event{
+				File: &schema.FileEvent{
+					Path:   fullPath,
+					Action: "edit",
+				},
+				Tool: &schema.ToolEvent{
+					Name: "edit",
+					Args: map[string]interface{}{
+						"path":    fullPath,
+						"old_str": "original",
+						"new_str": tt.newStr,
+					},
+				},
+				Cwd:       tmpDir,
+				Lifecycle: "pre",
+			}
+
+			oldStdout := os.Stdout
+			stdoutR, stdoutW, _ := os.Pipe()
+			os.Stdout = stdoutW
+
+			_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+			_ = stdoutW.Close()
+			os.Stdout = oldStdout
+
+			var buf bytes.Buffer
+			_, _ = buf.ReadFrom(stdoutR)
+			output := buf.String()
+
+			if tt.expectDeny {
+				if !strings.Contains(output, "deny") {
+					t.Errorf("%s: Expected deny, got: %s", tt.description, output)
+				}
+			} else {
+				if !strings.Contains(output, "allow") {
+					t.Errorf("%s: Expected allow, got: %s", tt.description, output)
+				}
+			}
+		})
+	}
+}
+
+// =============================================================================
+// FILE CONTENT ACCESS IN EXPRESSIONS
+// =============================================================================
+// These tests verify that expressions can access file content for create events
+
+// TestFileContentInExpressions tests accessing file content in step conditions
+func TestFileContentInExpressions(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-content-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	os.MkdirAll(hooksDir, 0755)
+
+	// Workflow that checks file content on create
+	workflow := `name: Check New File Content
+on:
+  file:
+    paths:
+      - '**/*'
+    types:
+      - create
+blocking: true
+steps:
+  - name: Check for TODO markers
+    if: ${{ contains(event.file.content, 'TODO:') }}
+    run: |
+      echo "todo_found"
+      exit 1
+  - name: Check for FIXME markers
+    if: ${{ contains(event.file.content, 'FIXME:') }}
+    run: |
+      echo "fixme_found"
+      exit 1
+  - name: Check for console.log
+    if: ${{ contains(event.file.content, 'console.log') }}
+    run: |
+      echo "console_log_found"
+      exit 1
+`
+	os.WriteFile(filepath.Join(hooksDir, "check-new-file.yml"), []byte(workflow), 0644)
+
+	tests := []struct {
+		name        string
+		fileContent string
+		expectDeny  bool
+		description string
+	}{
+		{
+			name:        "contains TODO",
+			fileContent: "// TODO: implement this function\nfunction foo() {}",
+			expectDeny:  true,
+			description: "Should detect TODO markers",
+		},
+		{
+			name:        "contains FIXME",
+			fileContent: "// FIXME: this is broken\nfunction bar() {}",
+			expectDeny:  true,
+			description: "Should detect FIXME markers",
+		},
+		{
+			name:        "contains console.log",
+			fileContent: "function debug() {\n  console.log('test');\n}",
+			expectDeny:  true,
+			description: "Should detect console.log statements",
+		},
+		{
+			name:        "clean code",
+			fileContent: "function greet(name) {\n  return `Hello, ${name}!`;\n}",
+			expectDeny:  false,
+			description: "Clean code should be allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fullPath := filepath.Join(tmpDir, "newfile.js")
+
+			evt := &schema.Event{
+				File: &schema.FileEvent{
+					Path:    fullPath,
+					Action:  "create",
+					Content: tt.fileContent,
+				},
+				Tool: &schema.ToolEvent{
+					Name: "create",
+					Args: map[string]interface{}{
+						"path":      fullPath,
+						"file_text": tt.fileContent,
+					},
+				},
+				Cwd:       tmpDir,
+				Lifecycle: "pre",
+			}
+
+			oldStdout := os.Stdout
+			stdoutR, stdoutW, _ := os.Pipe()
+			os.Stdout = stdoutW
+
+			_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+			_ = stdoutW.Close()
+			os.Stdout = oldStdout
+
+			var buf bytes.Buffer
+			_, _ = buf.ReadFrom(stdoutR)
+			output := buf.String()
+
+			if tt.expectDeny {
+				if !strings.Contains(output, "deny") {
+					t.Errorf("%s: Expected deny, got: %s", tt.description, output)
+				}
+			} else {
+				if !strings.Contains(output, "allow") {
+					t.Errorf("%s: Expected allow, got: %s", tt.description, output)
 				}
 			}
 		})

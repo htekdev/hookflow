@@ -9,9 +9,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/htekdev/gh-hookflow/internal/discover"
 	"github.com/htekdev/gh-hookflow/internal/event"
+	"github.com/htekdev/gh-hookflow/internal/logging"
 	"github.com/htekdev/gh-hookflow/internal/runner"
 	"github.com/htekdev/gh-hookflow/internal/schema"
 	"github.com/htekdev/gh-hookflow/internal/trigger"
@@ -21,7 +23,14 @@ import (
 var version = "0.1.0"
 
 func main() {
+	// Initialize logging (errors are non-fatal)
+	_ = logging.Init()
+	defer logging.Close()
+
+	logging.Info("hookflow started, version=%s, args=%v", version, os.Args)
+
 	if err := rootCmd.Execute(); err != nil {
+		logging.Error("command failed: %v", err)
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -42,6 +51,107 @@ var versionCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("hookflow version %s\n", version)
 	},
+}
+
+var logsCmd = &cobra.Command{
+	Use:   "logs",
+	Short: "Show hookflow logs",
+	Long: `Display hookflow logs for debugging.
+
+Logs are stored in ~/.hookflow/logs/ with daily rotation.
+Enable debug logging by setting HOOKFLOW_DEBUG=1.
+
+Examples:
+  hookflow logs              # Show last 50 lines of today's log
+  hookflow logs -n 100       # Show last 100 lines
+  hookflow logs --path       # Print log file path (for scripting)
+  hookflow logs -f           # Follow log output`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		pathOnly, _ := cmd.Flags().GetBool("path")
+		tail, _ := cmd.Flags().GetInt("tail")
+		follow, _ := cmd.Flags().GetBool("follow")
+
+		logPath := logging.LogPath()
+		if logPath == "" {
+			// Logger not initialized, construct path
+			logPath = filepath.Join(logging.LogDir(), fmt.Sprintf("hookflow-%s.log", time.Now().Format("2006-01-02")))
+		}
+
+		// Just print path for scripting
+		if pathOnly {
+			fmt.Println(logPath)
+			return nil
+		}
+
+		// Check if log file exists
+		if _, err := os.Stat(logPath); os.IsNotExist(err) {
+			fmt.Printf("No logs found at: %s\n", logPath)
+			fmt.Println("\nTo enable logging, run hookflow commands with HOOKFLOW_DEBUG=1")
+			return nil
+		}
+
+		// Print log location
+		fmt.Printf("Log file: %s\n", logPath)
+		fmt.Printf("Log dir:  %s\n", logging.LogDir())
+		fmt.Println(strings.Repeat("-", 60))
+
+		// Read and display log file
+		if follow {
+			return followLog(logPath)
+		}
+
+		return tailLog(logPath, tail)
+	},
+}
+
+// tailLog shows the last n lines of the log file
+func tailLog(path string, n int) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read log file: %w", err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+
+	// Get last n lines
+	start := len(lines) - n
+	if start < 0 {
+		start = 0
+	}
+
+	for _, line := range lines[start:] {
+		if line != "" {
+			fmt.Println(line)
+		}
+	}
+	return nil
+}
+
+// followLog tails the log file continuously (like tail -f)
+func followLog(path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("failed to open log file: %w", err)
+	}
+	defer file.Close()
+
+	// Seek to end
+	file.Seek(0, io.SeekEnd)
+
+	fmt.Println("Following log output (Ctrl+C to stop)...")
+	fmt.Println()
+
+	buf := make([]byte, 1024)
+	for {
+		n, err := file.Read(buf)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if n > 0 {
+			fmt.Print(string(buf[:n]))
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 var discoverCmd = &cobra.Command{
@@ -191,6 +301,7 @@ func init() {
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(triggersCmd)
+	rootCmd.AddCommand(logsCmd)
 
 	// discover flags
 	discoverCmd.Flags().StringP("dir", "d", "", "Directory to search (default: current directory)")
@@ -205,6 +316,11 @@ func init() {
 	runCmd.Flags().StringP("dir", "d", "", "Directory to search (default: current directory)")
 	runCmd.Flags().BoolP("raw", "r", false, "Accept raw hook input and auto-detect event type")
 	runCmd.Flags().StringP("event-type", "t", "preToolUse", "Hook event type: preToolUse or postToolUse")
+
+	// logs flags
+	logsCmd.Flags().IntP("tail", "n", 50, "Number of lines to show")
+	logsCmd.Flags().BoolP("follow", "f", false, "Follow log output (like tail -f)")
+	logsCmd.Flags().Bool("path", false, "Only print log path (for scripting)")
 }
 
 // eventTypeToLifecycle converts Copilot hook event type to workflow lifecycle
@@ -242,12 +358,16 @@ func runWorkflow(dir, workflowName string) error {
 
 // runWithRawInput handles raw Copilot hook input and auto-detects event type
 func runWithRawInput(dir, inputStr, lifecycle string) error {
+	log := logging.Context("run")
+	done := logging.StartOperation("runWithRawInput", "dir="+dir, "lifecycle="+lifecycle)
+
 	// Read from stdin if "-"
 	var input []byte
 	var err error
 	if inputStr == "-" || inputStr == "" {
 		input, err = io.ReadAll(os.Stdin)
 		if err != nil {
+			done(err)
 			return fmt.Errorf("failed to read stdin: %w", err)
 		}
 	} else {
@@ -256,14 +376,19 @@ func runWithRawInput(dir, inputStr, lifecycle string) error {
 
 	// If empty input, allow by default
 	if len(input) == 0 || string(input) == "" {
+		log.Debug("empty input, allowing by default")
 		result := schema.NewAllowResult()
+		done(nil)
 		return outputWorkflowResult(result)
 	}
+
+	log.Debug("input length=%d", len(input))
 
 	// Use the event detector to parse and build the event
 	detector := event.NewDetector(nil) // nil = use real git provider
 	evt, err := detector.DetectFromRawInput(input)
 	if err != nil {
+		done(err)
 		return fmt.Errorf("failed to detect event: %w", err)
 	}
 
@@ -278,21 +403,30 @@ func runWithRawInput(dir, inputStr, lifecycle string) error {
 	// Set lifecycle from CLI flag
 	evt.Lifecycle = lifecycle
 
+	log.Debug("detected event: file=%v, tool=%v, lifecycle=%s", evt.File != nil, evt.Tool != nil, lifecycle)
+
 	// Discover and run matching workflows
-	return runMatchingWorkflowsWithEvent(dir, evt)
+	err = runMatchingWorkflowsWithEvent(dir, evt)
+	done(err)
+	return err
 }
 
 // runMatchingWorkflowsWithEvent runs workflows with a pre-built event
 func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
+	log := logging.Context("matcher")
+
 	// Normalize file path to be relative to dir (for matching against workflow patterns)
 	if evt.File != nil && evt.File.Path != "" {
+		originalPath := evt.File.Path
 		evt.File.Path = normalizeFilePath(evt.File.Path, dir)
+		log.Debug("normalized path: %s -> %s", originalPath, evt.File.Path)
 	}
 
 	// Discover workflows
 	workflowDir := filepath.Join(dir, ".github", "hooks")
 	if _, err := os.Stat(workflowDir); os.IsNotExist(err) {
 		// No workflows directory, allow by default
+		log.Debug("no workflow directory at %s, allowing", workflowDir)
 		result := schema.NewAllowResult()
 		return outputWorkflowResult(result)
 	}
@@ -313,8 +447,11 @@ func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
 		return nil
 	})
 	if err != nil {
+		log.Error("workflow scan failed: %v", err)
 		return fmt.Errorf("failed to scan workflows: %w", err)
 	}
+
+	log.Debug("found %d workflow files in %s", len(workflowFiles), workflowDir)
 
 	if len(workflowFiles) == 0 {
 		// No workflows found, allow by default
@@ -333,14 +470,19 @@ func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
 			if relPath == "" {
 				relPath = path
 			}
+			log.Warn("workflow validation failed: %s: %v", relPath, err)
 			validationErrors = append(validationErrors, fmt.Sprintf("%s: %v", relPath, err))
 			continue
 		}
 
 		// Check if workflow matches the event
 		matcher := trigger.NewMatcher(wf)
-		if matcher.Match(evt) {
+		matched := matcher.Match(evt)
+		if matched {
+			log.Info("workflow matched: %s", wf.Name)
 			matchingWorkflows = append(matchingWorkflows, wf)
+		} else {
+			log.Debug("workflow did not match: %s", wf.Name)
 		}
 	}
 
@@ -348,6 +490,7 @@ func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
 	if len(validationErrors) > 0 {
 		// Allow edits/creates to .github/hooks/ so agent can self-repair
 		if isHookflowSelfRepair(evt, dir) {
+			log.Info("allowing self-repair for invalid workflows")
 			result := schema.NewAllowResult()
 			result.PermissionDecisionReason = "Allowing hookflow self-repair (workflows have errors)"
 			return outputWorkflowResult(result)
@@ -363,23 +506,29 @@ func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
 
 	if len(matchingWorkflows) == 0 {
 		// No matching workflows, allow by default
+		log.Debug("no matching workflows, allowing")
 		result := schema.NewAllowResult()
 		return outputWorkflowResult(result)
 	}
+
+	log.Info("running %d matching workflows", len(matchingWorkflows))
 
 	// Run matching workflows
 	ctx := context.Background()
 	var finalResult *schema.WorkflowResult
 
 	for _, wf := range matchingWorkflows {
+		log.Debug("executing workflow: %s", wf.Name)
 		r := runner.NewRunner(wf, evt, dir)
 		result := r.RunWithBlocking(ctx)
 
 		// If any workflow denies, the final result is deny
 		if result.PermissionDecision == "deny" {
+			log.Warn("workflow %s denied: %s", wf.Name, result.PermissionDecisionReason)
 			return outputWorkflowResult(result)
 		}
 
+		log.Debug("workflow %s allowed", wf.Name)
 		// Keep the last allow result
 		finalResult = result
 	}

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/htekdev/gh-hookflow/internal/logging"
 	"github.com/htekdev/gh-hookflow/internal/schema"
 )
 
@@ -75,6 +76,9 @@ func (d *Detector) DetectFromRawInput(input []byte) (*schema.Event, error) {
 
 // Detect determines the event type and builds the appropriate event structure
 func (d *Detector) Detect(raw *RawHookInput) (*schema.Event, error) {
+	log := logging.Context("detector")
+	log.Debug("detecting event for tool=%s, cwd=%s", raw.ToolName, raw.Cwd)
+
 	event := &schema.Event{
 		Cwd: raw.Cwd,
 	}
@@ -102,6 +106,8 @@ func (d *Detector) Detect(raw *RawHookInput) (*schema.Event, error) {
 		command = args.Code
 	}
 
+	log.Debug("parsed command=%q, path=%q", command, args.Path)
+
 	// Always set tool event
 	toolArgs := make(map[string]interface{})
 	if len(raw.ToolArgs) > 0 {
@@ -116,11 +122,25 @@ func (d *Detector) Detect(raw *RawHookInput) (*schema.Event, error) {
 	// Detect specific event types based on tool and command
 	switch raw.ToolName {
 	case "powershell", "bash", "shell", "terminal":
+		log.Debug("shell tool, checking for git commands")
 		d.detectShellEvent(event, command, raw.Cwd)
 	case "create":
+		log.Debug("create tool for path=%s", args.Path)
 		d.detectCreateEvent(event, &args)
 	case "edit":
+		log.Debug("edit tool for path=%s", args.Path)
 		d.detectEditEvent(event, &args)
+	}
+
+	// Log what was detected
+	if event.Commit != nil {
+		log.Info("detected commit event with %d files", len(event.Commit.Files))
+	} else if event.Push != nil {
+		log.Info("detected push event to ref=%s", event.Push.Ref)
+	} else if event.File != nil {
+		log.Info("detected file event: action=%s, path=%s", event.File.Action, event.File.Path)
+	} else {
+		log.Debug("no specific event type detected, using tool event only")
 	}
 
 	return event, nil
