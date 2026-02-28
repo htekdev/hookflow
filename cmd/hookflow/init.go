@@ -89,14 +89,15 @@ func runInit(dir string, force bool) error {
 // generateHooksJSON creates the hooks.json that integrates with Copilot CLI
 // This goes in .github/hooks/hooks.json per Copilot CLI documentation
 func generateHooksJSON() string {
+	// The hook checks for hookflow in PATH first, then falls back to gh hookflow
 	return `{
   "version": 1,
   "hooks": {
     "preToolUse": [
       {
         "type": "command",
-        "bash": "command -v hookflow >/dev/null 2>&1 || { echo '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: npm i -g hookflow-cli\"}'; exit 0; }; hookflow run --raw --dir \"$PWD\"",
-        "powershell": "if (-not (Get-Command hookflow -ErrorAction SilentlyContinue)) { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: npm i -g hookflow-cli\"}'; exit 0 }; hookflow run --raw --dir (Get-Location)",
+        "bash": "if command -v hookflow >/dev/null 2>&1; then hookflow run --raw --dir \"$PWD\"; elif command -v gh >/dev/null 2>&1 && gh extension list 2>/dev/null | grep -q hookflow; then gh hookflow run --raw --dir \"$PWD\"; else echo '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: gh extension install htekdev/gh-hookflow\"}'; fi",
+        "powershell": "$hf = Get-Command hookflow -ErrorAction SilentlyContinue; if ($hf) { hookflow run --raw --dir (Get-Location) } elseif ((Get-Command gh -ErrorAction SilentlyContinue) -and ((gh extension list 2>$null) -match 'hookflow')) { gh hookflow run --raw --dir (Get-Location) } else { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: gh extension install htekdev/gh-hookflow\"}' }",
         "timeoutSec": 60
       }
     ]
