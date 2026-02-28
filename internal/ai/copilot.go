@@ -68,9 +68,10 @@ func (c *Client) GenerateWorkflow(ctx context.Context, prompt string) (*Generate
 		return nil, fmt.Errorf("client not started")
 	}
 
-	// Create a session
+	// Create a session with permission handler (required by SDK)
 	session, err := c.client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "gpt-4o",
+		Model:               "gpt-4o",
+		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
