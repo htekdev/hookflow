@@ -284,6 +284,11 @@ func runWithRawInput(dir, inputStr, lifecycle string) error {
 
 // runMatchingWorkflowsWithEvent runs workflows with a pre-built event
 func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
+	// Normalize file path to be relative to dir (for matching against workflow patterns)
+	if evt.File != nil && evt.File.Path != "" {
+		evt.File.Path = normalizeFilePath(evt.File.Path, dir)
+	}
+
 	// Discover workflows
 	workflowDir := filepath.Join(dir, ".github", "hooks")
 	if _, err := os.Stat(workflowDir); os.IsNotExist(err) {

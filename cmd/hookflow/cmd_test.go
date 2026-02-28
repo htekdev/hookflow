@@ -2172,16 +2172,14 @@ steps:
 	
 	evt := &schema.Event{
 		File: &schema.FileEvent{
-			Path:   absolutePath, // Absolute path like Copilot sends
+			Path:   absolutePath, // Absolute path like Copilot sends - NOT pre-normalized
 			Action: "edit",
 		},
 		Lifecycle: "pre",
 		Cwd:       tmpDir,
 	}
 
-	// The normalizeFilePath should convert this to relative
-	evt.File.Path = normalizeFilePath(evt.File.Path, tmpDir)
-
+	// DO NOT manually normalize - runMatchingWorkflowsWithEvent should do it internally
 	oldStdout := os.Stdout
 	stdoutR, stdoutW, _ := os.Pipe()
 	os.Stdout = stdoutW
@@ -2198,5 +2196,207 @@ steps:
 	// Should match and run the workflow (allow because steps succeed)
 	if !strings.Contains(output, "allow") {
 		t.Errorf("Expected workflow to match absolute path converted to relative, got: %s", output)
+	}
+}
+
+// TestAbsolutePathMatchingScenarios tests various path matching scenarios with absolute paths
+func TestAbsolutePathMatchingScenarios(t *testing.T) {
+	tests := []struct {
+		name         string
+		workflow     string
+		filePath     string // Relative to tmpDir for constructing absolute path
+		action       string
+		shouldMatch  bool
+		description  string
+	}{
+		{
+			name: "simple filename match",
+			workflow: `name: Simple Match
+on:
+  file:
+    paths:
+      - 'plugin.json'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Deny to prove match
+    run: exit 1
+`,
+			filePath:    "plugin.json",
+			action:      "edit",
+			shouldMatch: true,
+			description: "pattern 'plugin.json' should match absolute path ending in plugin.json",
+		},
+		{
+			name: "nested path pattern",
+			workflow: `name: Nested Match
+on:
+  file:
+    paths:
+      - 'packages/hooks/hooks.json'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Deny to prove match
+    run: exit 1
+`,
+			filePath:    "packages/hooks/hooks.json",
+			action:      "edit",
+			shouldMatch: true,
+			description: "pattern 'packages/hooks/hooks.json' should match nested absolute path",
+		},
+		{
+			name: "glob pattern with **",
+			workflow: `name: Glob Match
+on:
+  file:
+    paths:
+      - 'packages/hooks/scripts/**'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Deny to prove match
+    run: exit 1
+`,
+			filePath:    "packages/hooks/scripts/test.sh",
+			action:      "edit",
+			shouldMatch: true,
+			description: "pattern 'packages/hooks/scripts/**' should match files in subdirectory",
+		},
+		{
+			name: "glob pattern with *.json",
+			workflow: `name: Extension Match
+on:
+  file:
+    paths:
+      - '*.json'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Deny to prove match
+    run: exit 1
+`,
+			filePath:    "config.json",
+			action:      "edit",
+			shouldMatch: true,
+			description: "pattern '*.json' should match any .json file in root",
+		},
+		{
+			name: "glob pattern with **/*.json",
+			workflow: `name: Recursive Extension Match
+on:
+  file:
+    paths:
+      - '**/*.json'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Deny to prove match
+    run: exit 1
+`,
+			filePath:    "src/config/settings.json",
+			action:      "edit",
+			shouldMatch: true,
+			description: "pattern '**/*.json' should match .json file in any directory",
+		},
+		{
+			name: "no match wrong path",
+			workflow: `name: No Match
+on:
+  file:
+    paths:
+      - 'plugin.json'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Deny to prove match
+    run: exit 1
+`,
+			filePath:    "other.json",
+			action:      "edit",
+			shouldMatch: false,
+			description: "pattern 'plugin.json' should NOT match 'other.json'",
+		},
+		{
+			name: "no match wrong action",
+			workflow: `name: No Match Action
+on:
+  file:
+    paths:
+      - 'plugin.json'
+    types:
+      - create
+blocking: true
+steps:
+  - name: Deny to prove match
+    run: exit 1
+`,
+			filePath:    "plugin.json",
+			action:      "edit",
+			shouldMatch: false,
+			description: "types: [create] should NOT match action 'edit'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir, err := os.MkdirTemp("", "hookflow-pathtest-*")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = os.RemoveAll(tmpDir) }()
+
+			workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+			if err := os.MkdirAll(workflowDir, 0755); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := os.WriteFile(filepath.Join(workflowDir, "test.yml"), []byte(tt.workflow), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			// Construct absolute path like Copilot would send
+			absolutePath := filepath.Join(tmpDir, tt.filePath)
+
+			evt := &schema.Event{
+				File: &schema.FileEvent{
+					Path:   absolutePath, // Absolute path - should be normalized internally
+					Action: tt.action,
+				},
+				Lifecycle: "pre",
+				Cwd:       tmpDir,
+			}
+
+			oldStdout := os.Stdout
+			stdoutR, stdoutW, _ := os.Pipe()
+			os.Stdout = stdoutW
+
+			_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+			_ = stdoutW.Close()
+			os.Stdout = oldStdout
+
+			var buf bytes.Buffer
+			_, _ = buf.ReadFrom(stdoutR)
+			output := buf.String()
+
+			if tt.shouldMatch {
+				// If should match, workflow runs and step exits 1, so we should get "deny"
+				if !strings.Contains(output, "deny") {
+					t.Errorf("%s: Expected workflow to match and deny, but got: %s", tt.description, output)
+				}
+			} else {
+				// If should NOT match, we get default "allow" (no workflow ran)
+				if !strings.Contains(output, "allow") {
+					t.Errorf("%s: Expected no match (allow), but got: %s", tt.description, output)
+				}
+			}
+		})
 	}
 }
