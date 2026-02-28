@@ -1,0 +1,26 @@
+name: Lint JavaScript Files
+description: Run ESLint on JS file edits
+
+on:
+  file:
+    types:
+      - edit
+    paths:
+      - '**/*.js'
+      - '**/*.jsx'
+    paths-ignore:
+      - 'node_modules/**'
+
+env:
+  NODE_ENV: development
+
+steps:
+  - name: Check file exists
+    if: ${{ event.file.path != '' }}
+    run: echo "Linting ${{ event.file.path }}"
+    shell: pwsh
+
+  - name: Run ESLint
+    run: npx eslint "${{ event.file.path }}"
+    continue-on-error: true
+    timeout: 30

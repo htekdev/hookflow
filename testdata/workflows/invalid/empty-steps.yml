@@ -1,0 +1,9 @@
+name: Empty Steps
+description: Workflow with empty steps array
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+steps: []

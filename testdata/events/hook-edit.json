@@ -1,0 +1,25 @@
+{
+  "hook": {
+    "type": "preToolUse",
+    "tool": {
+      "name": "edit",
+      "args": {
+        "path": "src/utils/helper.js",
+        "old_str": "function old() {}",
+        "new_str": "function new() {}"
+      }
+    },
+    "cwd": "/home/user/project"
+  },
+  "tool": {
+    "name": "edit",
+    "args": {
+      "path": "src/utils/helper.js",
+      "old_str": "function old() {}",
+      "new_str": "function new() {}"
+    },
+    "hook_type": "preToolUse"
+  },
+  "cwd": "/home/user/project",
+  "timestamp": "2026-02-26T12:00:00Z"
+}

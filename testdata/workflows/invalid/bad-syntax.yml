@@ -1,0 +1,5 @@
+name: Bad Syntax
+this is not valid yaml
+  - indentation: wrong
+    nested:
+  broken: [unclosed

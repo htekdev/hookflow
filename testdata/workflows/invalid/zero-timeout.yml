@@ -1,0 +1,12 @@
+name: Zero Timeout
+description: Workflow with zero timeout (invalid - minimum is 1)
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+steps:
+  - name: Run command
+    run: echo "hello"
+    timeout: 0

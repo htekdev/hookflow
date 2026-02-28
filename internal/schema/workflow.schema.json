@@ -1,0 +1,330 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hookflow.dev/schema/workflow.json",
+  "title": "hookflow Workflow Schema",
+  "description": "Schema for validating hookflow workflow YAML files",
+  "type": "object",
+  "required": ["name", "on", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The name of the workflow",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "description": "A description of what the workflow does"
+    },
+    "blocking": {
+      "type": "boolean",
+      "description": "Whether the workflow blocks execution until completion",
+      "default": true
+    },
+    "concurrency": {
+      "type": "object",
+      "description": "Concurrency settings for workflow execution",
+      "required": ["group"],
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "type": "string",
+          "description": "Concurrency group identifier",
+          "minLength": 1
+        },
+        "max-parallel": {
+          "type": "integer",
+          "description": "Maximum number of parallel executions in the group",
+          "minimum": 1
+        }
+      }
+    },
+    "on": {
+      "type": "object",
+      "description": "Trigger configuration for the workflow",
+      "additionalProperties": false,
+      "properties": {
+        "hooks": {
+          "$ref": "#/definitions/hookTrigger"
+        },
+        "tool": {
+          "$ref": "#/definitions/toolTrigger"
+        },
+        "tools": {
+          "type": "array",
+          "description": "Array of tool triggers",
+          "items": {
+            "$ref": "#/definitions/toolTrigger"
+          },
+          "minItems": 1
+        },
+        "file": {
+          "$ref": "#/definitions/fileTrigger"
+        },
+        "commit": {
+          "$ref": "#/definitions/commitTrigger"
+        },
+        "push": {
+          "$ref": "#/definitions/pushTrigger"
+        }
+      },
+      "minProperties": 1
+    },
+    "env": {
+      "type": "object",
+      "description": "Environment variables available to all steps",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "steps": {
+      "type": "array",
+      "description": "Array of steps to execute in the workflow",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/step"
+      }
+    }
+  },
+  "definitions": {
+    "hookTrigger": {
+      "type": "object",
+      "description": "Trigger on GitHub hooks",
+      "additionalProperties": false,
+      "properties": {
+        "types": {
+          "type": "array",
+          "description": "Hook event types to trigger on",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "tools": {
+          "type": "array",
+          "description": "Tool names to filter hooks by",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "toolTrigger": {
+      "type": "object",
+      "description": "Trigger on specific tool execution",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the tool",
+          "minLength": 1
+        },
+        "args": {
+          "type": "object",
+          "description": "Argument filters for the tool",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "if": {
+          "type": "string",
+          "description": "Expression condition for triggering"
+        }
+      },
+      "required": ["name"]
+    },
+    "toolsTrigger": {
+      "type": "object",
+      "description": "Trigger on multiple tools execution",
+      "additionalProperties": false,
+      "properties": {
+        "names": {
+          "type": "array",
+          "description": "Names of tools",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "events": {
+          "type": "array",
+          "description": "Tool events to trigger on",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["names"]
+    },
+    "fileTrigger": {
+      "type": "object",
+      "description": "Trigger on file changes",
+      "additionalProperties": false,
+      "properties": {
+        "types": {
+          "type": "array",
+          "description": "File event types to trigger on",
+          "items": {
+            "type": "string",
+            "enum": ["create", "edit", "delete"]
+          }
+        },
+        "paths": {
+          "type": "array",
+          "description": "File paths or patterns to include",
+          "items": {
+            "type": "string"
+          }
+        },
+        "paths-ignore": {
+          "type": "array",
+          "description": "File paths or patterns to exclude",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "commitTrigger": {
+      "type": "object",
+      "description": "Trigger on commits",
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "type": "array",
+          "description": "File paths or patterns to watch",
+          "items": {
+            "type": "string"
+          }
+        },
+        "paths-ignore": {
+          "type": "array",
+          "description": "File paths or patterns to exclude",
+          "items": {
+            "type": "string"
+          }
+        },
+        "branches": {
+          "type": "array",
+          "description": "Branches to watch",
+          "items": {
+            "type": "string"
+          }
+        },
+        "branches-ignore": {
+          "type": "array",
+          "description": "Branches to exclude",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "pushTrigger": {
+      "type": "object",
+      "description": "Trigger on git push events",
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "type": "array",
+          "description": "File paths or patterns to watch",
+          "items": {
+            "type": "string"
+          }
+        },
+        "paths-ignore": {
+          "type": "array",
+          "description": "File paths or patterns to exclude",
+          "items": {
+            "type": "string"
+          }
+        },
+        "branches": {
+          "type": "array",
+          "description": "Branches to watch",
+          "items": {
+            "type": "string"
+          }
+        },
+        "branches-ignore": {
+          "type": "array",
+          "description": "Branches to exclude",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags to watch",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tags-ignore": {
+          "type": "array",
+          "description": "Tags to exclude",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "description": "A workflow step definition",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Optional name for the step"
+        },
+        "if": {
+          "type": "string",
+          "description": "Conditional expression for step execution"
+        },
+        "run": {
+          "type": "string",
+          "description": "Command to run in the shell"
+        },
+        "shell": {
+          "type": "string",
+          "description": "Shell to use for executing the command",
+          "enum": ["pwsh", "bash", "sh", "cmd"]
+        },
+        "uses": {
+          "type": "string",
+          "description": "Reference to an action or tool to use"
+        },
+        "with": {
+          "type": "object",
+          "description": "Parameters to pass to the action",
+          "additionalProperties": true
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables for this step",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "working-directory": {
+          "type": "string",
+          "description": "Working directory for step execution"
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "Timeout in seconds for step execution",
+          "minimum": 1
+        },
+        "continue-on-error": {
+          "type": "boolean",
+          "description": "Whether to continue workflow execution if this step fails"
+        }
+      },
+      "anyOf": [
+        {"required": ["run"]},
+        {"required": ["uses"]}
+      ]
+    }
+  }
+}

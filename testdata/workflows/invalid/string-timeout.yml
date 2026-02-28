@@ -1,0 +1,12 @@
+name: String Timeout
+description: Workflow with string instead of integer timeout
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+steps:
+  - name: Run command
+    run: echo "hello"
+    timeout: "30s"

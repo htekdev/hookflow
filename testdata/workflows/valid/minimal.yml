@@ -1,0 +1,10 @@
+name: Minimal Valid
+description: Minimal valid workflow
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+steps:
+  - run: echo "hello"

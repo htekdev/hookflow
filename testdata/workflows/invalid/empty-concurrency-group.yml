@@ -1,0 +1,15 @@
+name: Empty Concurrency Group
+description: Workflow with empty concurrency group string
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+concurrency:
+  group: ""
+  max-parallel: 2
+
+steps:
+  - name: Run command
+    run: echo "hello"

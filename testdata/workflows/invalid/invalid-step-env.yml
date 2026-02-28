@@ -1,0 +1,13 @@
+name: Invalid Step Env Type
+description: Workflow with non-string step env value
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+steps:
+  - name: Run command
+    run: echo "hello"
+    env:
+      BAD_VAR: 456

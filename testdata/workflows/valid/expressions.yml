@@ -1,0 +1,32 @@
+name: Expression Examples
+description: Tests various expression patterns
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+steps:
+  - name: String functions
+    if: ${{ contains(event.file.path, 'src') && endsWith(event.file.path, '.ts') }}
+    run: echo "TypeScript file in src"
+
+  - name: Comparison operators
+    if: ${{ 1 < 2 && 3 >= 3 }}
+    run: echo "Math works"
+
+  - name: Boolean logic
+    if: ${{ !false && (true || false) }}
+    run: echo "Boolean logic works"
+
+  - name: Nested properties
+    if: ${{ event.hook.tool.name == 'edit' }}
+    run: echo "Editing with ${{ event.hook.tool.name }}"
+
+  - name: Format function
+    run: echo "${{ format('Hello {0}, you are editing {1}', 'user', event.file.path) }}"
+
+  - name: Environment variable
+    run: echo "NODE_ENV is ${{ env.NODE_ENV }}"
+    env:
+      NODE_ENV: test

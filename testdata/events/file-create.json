@@ -1,0 +1,9 @@
+{
+  "file": {
+    "path": "src/components/Button.tsx",
+    "action": "create",
+    "content": "export const Button = () => <button>Click me</button>"
+  },
+  "cwd": "/home/user/project",
+  "timestamp": "2026-02-26T12:00:00Z"
+}

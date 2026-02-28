@@ -1,0 +1,13 @@
+name: Extra Property
+description: Workflow with unknown additional property
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+extra_field: not-allowed
+
+steps:
+  - name: Run command
+    run: echo "hello"

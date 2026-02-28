@@ -1,0 +1,8 @@
+name: Empty On Config
+description: Workflow with empty on configuration
+
+on: {}
+
+steps:
+  - name: Run command
+    run: echo "hello"

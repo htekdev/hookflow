@@ -1,0 +1,11 @@
+name: Step Missing Run or Uses
+description: Workflow where step has neither run nor uses
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+steps:
+  - name: Invalid Step
+    if: ${{ true }}

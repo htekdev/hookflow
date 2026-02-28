@@ -1,0 +1,11 @@
+name: Invalid File Type
+description: Workflow with invalid file event type
+
+on:
+  file:
+    types:
+      - invalid-type
+
+steps:
+  - name: Run command
+    run: echo "hello"

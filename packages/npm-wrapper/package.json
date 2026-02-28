@@ -1,0 +1,42 @@
+{
+  "name": "hookflow",
+  "version": "0.0.0",
+  "description": "Local workflow engine for agentic DevOps - run GitHub Actions-like workflows triggered by Copilot agent hooks",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/htekdev/hookflow.git"
+  },
+  "homepage": "https://github.com/htekdev/hookflow",
+  "bugs": {
+    "url": "https://github.com/htekdev/hookflow/issues"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "htekdev"
+  },
+  "keywords": [
+    "copilot",
+    "agentic",
+    "devops",
+    "workflow",
+    "github-actions",
+    "hooks",
+    "cli",
+    "agent",
+    "automation"
+  ],
+  "bin": {
+    "hookflow": "./bin/hookflow.js"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "bin/",
+    "postinstall.js",
+    "README.md"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "commit": {
+    "sha": "abc123def456",
+    "message": "feat: add new feature",
+    "author": "developer@example.com",
+    "files": [
+      {
+        "path": "src/feature.ts",
+        "status": "added"
+      },
+      {
+        "path": "src/utils.ts",
+        "status": "modified"
+      },
+      {
+        "path": "src/old.ts",
+        "status": "deleted"
+      }
+    ]
+  },
+  "cwd": "/home/user/project",
+  "timestamp": "2026-02-26T12:00:00Z"
+}

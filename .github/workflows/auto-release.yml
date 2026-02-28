@@ -1,0 +1,152 @@
+name: Auto Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/ci.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Auto Release
+    runs-on: ubuntu-latest
+    # Only run if not a tag push and commit message doesn't start with "chore(release)"
+    if: "!startsWith(github.ref, 'refs/tags/') && !startsWith(github.event.head_commit.message, 'chore(release)')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          # Get the latest tag, default to v0.0.0 if none exists
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $LATEST_TAG"
+
+      - name: Calculate next version
+        id: version
+        run: |
+          LATEST_TAG="${{ steps.get_tag.outputs.latest_tag }}"
+          
+          # Strip 'v' prefix for calculation
+          VERSION="${LATEST_TAG#v}"
+          
+          # Split into major.minor.patch
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          # Get commit messages since last tag
+          if [ "$LATEST_TAG" = "v0.0.0" ]; then
+            COMMITS=$(git log --pretty=format:"%s" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"%s" "$LATEST_TAG"..HEAD)
+          fi
+          
+          echo "Commits since $LATEST_TAG:"
+          echo "$COMMITS"
+          
+          # Determine version bump based on conventional commits
+          BUMP="patch"
+          
+          if echo "$COMMITS" | grep -qiE "^feat(\(.+\))?!:|BREAKING CHANGE"; then
+            BUMP="major"
+          elif echo "$COMMITS" | grep -qiE "^feat(\(.+\))?:"; then
+            BUMP="minor"
+          fi
+          
+          echo "Bump type: $BUMP"
+          
+          # Calculate new version
+          case $BUMP in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+          
+          # Check if version actually changed
+          if [ "$NEW_VERSION" = "$LATEST_TAG" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Go
+        if: steps.version.outputs.skip != 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Run tests
+        if: steps.version.outputs.skip != 'true'
+        run: go test ./... -v
+
+      - name: Build binaries
+        if: steps.version.outputs.skip != 'true'
+        run: |
+          mkdir -p dist
+          
+          # Darwin AMD64
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/hookflow-darwin-amd64 ./cmd/hookflow
+          
+          # Darwin ARM64
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/hookflow-darwin-arm64 ./cmd/hookflow
+          
+          # Linux AMD64
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/hookflow-linux-amd64 ./cmd/hookflow
+          
+          # Linux ARM64
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o dist/hookflow-linux-arm64 ./cmd/hookflow
+          
+          # Windows AMD64
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/hookflow-windows-amd64.exe ./cmd/hookflow
+          
+          # Windows ARM64
+          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o dist/hookflow-windows-arm64.exe ./cmd/hookflow
+
+      - name: Create checksums
+        if: steps.version.outputs.skip != 'true'
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+
+      - name: Create tag
+        if: steps.version.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.new_version }}" -m "Release ${{ steps.version.outputs.new_version }}"
+          git push origin "${{ steps.version.outputs.new_version }}"
+
+      - name: Create Release
+        if: steps.version.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.new_version }}
+          files: |
+            dist/hookflow-darwin-amd64
+            dist/hookflow-darwin-arm64
+            dist/hookflow-linux-amd64
+            dist/hookflow-linux-arm64
+            dist/hookflow-windows-amd64.exe
+            dist/hookflow-windows-arm64.exe
+            dist/checksums.txt
+          generate_release_notes: true

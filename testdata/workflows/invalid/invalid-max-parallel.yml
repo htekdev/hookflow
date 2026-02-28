@@ -1,0 +1,15 @@
+name: Invalid Max Parallel
+description: Workflow with invalid max-parallel (less than 1)
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+concurrency:
+  group: my-group
+  max-parallel: 0
+
+steps:
+  - name: Run command
+    run: echo "hello"

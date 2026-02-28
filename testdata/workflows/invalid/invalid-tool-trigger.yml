@@ -1,0 +1,11 @@
+name: Invalid Tool Trigger
+description: Workflow with tool trigger missing required name
+
+on:
+  tool:
+    args:
+      path: '**/*.txt'
+
+steps:
+  - name: Run command
+    run: echo "hello"

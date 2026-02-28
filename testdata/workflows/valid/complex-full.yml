@@ -1,0 +1,83 @@
+name: With All Valid Options
+description: Complex workflow with all valid options
+
+blocking: false
+
+concurrency:
+  group: test-group-${{ event.cwd }}
+  max-parallel: 3
+
+on:
+  hooks:
+    types:
+      - preToolUse
+      - postToolUse
+    tools:
+      - edit
+  tool:
+    name: powershell
+    args:
+      command: '*rm*'
+    if: ${{ event.tool.name == 'powershell' }}
+  file:
+    types:
+      - create
+      - edit
+      - delete
+    paths:
+      - 'src/**/*.ts'
+      - '!src/**/*.test.ts'
+    paths-ignore:
+      - 'dist/**'
+  commit:
+    paths:
+      - 'src/**'
+    paths-ignore:
+      - 'docs/**'
+    branches:
+      - main
+      - develop
+    branches-ignore:
+      - 'temp/**'
+  push:
+    branches:
+      - main
+    branches-ignore:
+      - 'feature/**'
+    tags:
+      - 'v*'
+    tags-ignore:
+      - '*-alpha'
+    paths:
+      - '**/*.go'
+
+env:
+  NODE_ENV: production
+  LOG_LEVEL: debug
+
+steps:
+  - name: Setup step
+    run: echo "Setting up"
+    shell: pwsh
+    env:
+      STEP_VAR: value
+    working-directory: ./src
+    timeout: 60
+    continue-on-error: false
+
+  - name: Run tests
+    uses: run-tests
+    with:
+      coverage: "true"
+      verbose: "yes"
+
+  - name: Conditional step
+    if: ${{ success() }}
+    run: |
+      echo "Multi-line"
+      echo "Command"
+    shell: bash
+
+  - name: Cleanup
+    if: ${{ always() }}
+    run: echo "Cleanup"

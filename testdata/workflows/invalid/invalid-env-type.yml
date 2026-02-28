@@ -1,0 +1,15 @@
+name: Invalid Env Type
+description: Workflow with non-string env value
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+env:
+  STRING_VAR: "hello"
+  INTEGER_VAR: 123
+
+steps:
+  - name: Run command
+    run: echo "hello"

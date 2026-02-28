@@ -1,0 +1,9 @@
+name: Empty Tools Array
+description: Workflow with empty tools array trigger
+
+on:
+  tools: []
+
+steps:
+  - name: Run command
+    run: echo "hello"

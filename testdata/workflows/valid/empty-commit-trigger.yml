@@ -1,0 +1,9 @@
+name: Empty Commit Trigger Test
+description: Tests that empty commit trigger matches all commits
+
+on:
+  commit:
+
+steps:
+  - name: Always Run
+    run: echo "This should run on any commit"

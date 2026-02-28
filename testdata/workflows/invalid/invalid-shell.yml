@@ -1,0 +1,12 @@
+name: Invalid Shell
+description: Workflow with invalid shell value
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+steps:
+  - name: Run command
+    run: echo "hello"
+    shell: invalid-shell

@@ -1,0 +1,73 @@
+name: All Triggers Demo
+description: Demonstrates all trigger types
+
+blocking: true
+
+concurrency:
+  group: all-triggers-${{ event.cwd }}
+  max-parallel: 2
+
+on:
+  hooks:
+    types:
+      - preToolUse
+      - postToolUse
+    tools:
+      - edit
+      - create
+
+  tool:
+    name: edit
+    args:
+      path: '**/*.env*'
+
+  tools:
+    - name: create
+      args:
+        path: '**/secrets/**'
+    - name: powershell
+      if: ${{ contains(event.tool.args.command, 'rm') }}
+
+  file:
+    types:
+      - create
+      - edit
+    paths:
+      - 'src/**'
+      - '!src/test/**'
+    paths-ignore:
+      - '**/*.test.ts'
+
+  commit:
+    paths:
+      - 'src/**'
+    branches:
+      - main
+      - 'release/**'
+    branches-ignore:
+      - 'release/**-alpha'
+
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    tags-ignore:
+      - '*-beta'
+
+env:
+  DEBUG: 'true'
+  LOG_LEVEL: info
+
+steps:
+  - name: Log trigger
+    run: echo "Triggered by event"
+    shell: bash
+
+  - name: Conditional step
+    if: ${{ event.hook.type == 'preToolUse' }}
+    run: echo "This is a preToolUse hook"
+
+  - name: Always run
+    if: ${{ always() }}
+    run: echo "This always runs"

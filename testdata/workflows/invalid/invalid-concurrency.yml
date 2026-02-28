@@ -1,0 +1,14 @@
+name: Invalid Concurrency
+description: Workflow with invalid concurrency (missing required group)
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+concurrency:
+  max-parallel: 2
+
+steps:
+  - name: Run command
+    run: echo "hello"

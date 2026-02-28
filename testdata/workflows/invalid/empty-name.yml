@@ -1,0 +1,11 @@
+name: ""
+description: Workflow with empty name
+
+on:
+  hooks:
+    types:
+      - preToolUse
+
+steps:
+  - name: Run command
+    run: echo "hello"
