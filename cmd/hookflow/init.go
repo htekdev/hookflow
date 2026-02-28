@@ -109,23 +109,23 @@ func runInit(dir string, force bool) error {
 // This goes in .github/hooks/hooks.json per Copilot CLI documentation
 func generateHooksJSON() string {
 	// The hook checks for hookflow in PATH first, then falls back to gh hookflow
-	// Both preToolUse and postToolUse hooks are configured with appropriate --event-type
+	// Uses 'gh hookflow version' for fast extension detection (vs slow 'gh extension list')
 	return `{
   "version": 1,
   "hooks": {
     "preToolUse": [
       {
         "type": "command",
-        "bash": "if command -v hookflow >/dev/null 2>&1; then hookflow run --raw --event-type preToolUse --dir \"$PWD\"; elif command -v gh >/dev/null 2>&1 && gh extension list 2>/dev/null | grep -q hookflow; then gh hookflow run --raw --event-type preToolUse --dir \"$PWD\"; else echo '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: gh extension install htekdev/gh-hookflow\"}'; fi",
-        "powershell": "$hf = Get-Command hookflow -ErrorAction SilentlyContinue; if ($hf) { hookflow run --raw --event-type preToolUse --dir (Get-Location) } elseif ((Get-Command gh -ErrorAction SilentlyContinue) -and ((gh extension list 2>$null) -match 'hookflow')) { gh hookflow run --raw --event-type preToolUse --dir (Get-Location) } else { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: gh extension install htekdev/gh-hookflow\"}' }",
+        "bash": "if command -v hookflow >/dev/null 2>&1; then hookflow run --raw --event-type preToolUse --dir \"$PWD\"; elif gh hookflow version >/dev/null 2>&1; then gh hookflow run --raw --event-type preToolUse --dir \"$PWD\"; else echo '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: gh extension install htekdev/gh-hookflow\"}'; fi",
+        "powershell": "if (Get-Command hookflow -ErrorAction SilentlyContinue) { hookflow run --raw --event-type preToolUse --dir (Get-Location) } elseif (gh hookflow version 2>$null) { gh hookflow run --raw --event-type preToolUse --dir (Get-Location) } else { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: gh extension install htekdev/gh-hookflow\"}' }",
         "timeoutSec": 60
       }
     ],
     "postToolUse": [
       {
         "type": "command",
-        "bash": "if command -v hookflow >/dev/null 2>&1; then hookflow run --raw --event-type postToolUse --dir \"$PWD\"; elif command -v gh >/dev/null 2>&1 && gh extension list 2>/dev/null | grep -q hookflow; then gh hookflow run --raw --event-type postToolUse --dir \"$PWD\"; fi",
-        "powershell": "$hf = Get-Command hookflow -ErrorAction SilentlyContinue; if ($hf) { hookflow run --raw --event-type postToolUse --dir (Get-Location) } elseif ((Get-Command gh -ErrorAction SilentlyContinue) -and ((gh extension list 2>$null) -match 'hookflow')) { gh hookflow run --raw --event-type postToolUse --dir (Get-Location) }",
+        "bash": "if command -v hookflow >/dev/null 2>&1; then hookflow run --raw --event-type postToolUse --dir \"$PWD\"; elif gh hookflow version >/dev/null 2>&1; then gh hookflow run --raw --event-type postToolUse --dir \"$PWD\"; fi",
+        "powershell": "if (Get-Command hookflow -ErrorAction SilentlyContinue) { hookflow run --raw --event-type postToolUse --dir (Get-Location) } elseif (gh hookflow version 2>$null) { gh hookflow run --raw --event-type postToolUse --dir (Get-Location) }",
         "timeoutSec": 60
       }
     ]
