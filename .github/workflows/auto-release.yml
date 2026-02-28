@@ -106,6 +106,7 @@ jobs:
         run: |
           mkdir -p dist
           
+          # Build hookflow-* binaries (for npm/direct download)
           # Darwin AMD64
           GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/hookflow-darwin-amd64 ./cmd/hookflow
           
@@ -123,6 +124,15 @@ jobs:
           
           # Windows ARM64
           GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o dist/hookflow-windows-arm64.exe ./cmd/hookflow
+          
+          # Build gh-hookflow-* binaries (for gh extension install)
+          # gh extension naming convention: {extension-name}-{os}-{arch}
+          cp dist/hookflow-darwin-amd64 dist/gh-hookflow-darwin-amd64
+          cp dist/hookflow-darwin-arm64 dist/gh-hookflow-darwin-arm64
+          cp dist/hookflow-linux-amd64 dist/gh-hookflow-linux-amd64
+          cp dist/hookflow-linux-arm64 dist/gh-hookflow-linux-arm64
+          cp dist/hookflow-windows-amd64.exe dist/gh-hookflow-windows-amd64.exe
+          cp dist/hookflow-windows-arm64.exe dist/gh-hookflow-windows-arm64.exe
 
       - name: Create checksums
         if: steps.version.outputs.skip != 'true'
@@ -150,6 +160,12 @@ jobs:
             dist/hookflow-linux-arm64
             dist/hookflow-windows-amd64.exe
             dist/hookflow-windows-arm64.exe
+            dist/gh-hookflow-darwin-amd64
+            dist/gh-hookflow-darwin-arm64
+            dist/gh-hookflow-linux-amd64
+            dist/gh-hookflow-linux-arm64
+            dist/gh-hookflow-windows-amd64.exe
+            dist/gh-hookflow-windows-arm64.exe
             dist/checksums.txt
           generate_release_notes: true
 
