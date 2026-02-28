@@ -105,25 +105,27 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         run: |
           mkdir -p dist
+          VERSION="${{ steps.version.outputs.new_version }}"
+          LDFLAGS="-s -w -X main.version=${VERSION#v}"
           
           # Build hookflow-* binaries (for npm/direct download)
           # Darwin AMD64
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/hookflow-darwin-amd64 ./cmd/hookflow
+          GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/hookflow-darwin-amd64 ./cmd/hookflow
           
           # Darwin ARM64
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/hookflow-darwin-arm64 ./cmd/hookflow
+          GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/hookflow-darwin-arm64 ./cmd/hookflow
           
           # Linux AMD64
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/hookflow-linux-amd64 ./cmd/hookflow
+          GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/hookflow-linux-amd64 ./cmd/hookflow
           
           # Linux ARM64
-          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o dist/hookflow-linux-arm64 ./cmd/hookflow
+          GOOS=linux GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/hookflow-linux-arm64 ./cmd/hookflow
           
           # Windows AMD64
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/hookflow-windows-amd64.exe ./cmd/hookflow
+          GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/hookflow-windows-amd64.exe ./cmd/hookflow
           
           # Windows ARM64
-          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o dist/hookflow-windows-arm64.exe ./cmd/hookflow
+          GOOS=windows GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/hookflow-windows-arm64.exe ./cmd/hookflow
           
           # Build gh-hookflow-* binaries (for gh extension install)
           # gh extension naming convention: {extension-name}-{os}-{arch}
