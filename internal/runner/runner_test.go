@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/htekdev/hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/schema"
 )
 
 // TestStepWithoutTimeout tests that steps without timeout run normally

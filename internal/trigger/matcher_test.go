@@ -3,7 +3,7 @@ package trigger
 import (
 	"testing"
 
-	"github.com/htekdev/hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/schema"
 )
 
 func TestMatchToolTrigger(t *testing.T) {

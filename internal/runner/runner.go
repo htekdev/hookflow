@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/htekdev/hookflow/internal/expression"
-	"github.com/htekdev/hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/expression"
+	"github.com/htekdev/gh-hookflow/internal/schema"
 )
 
 // Runner executes workflow steps

@@ -3,7 +3,7 @@ package event
 import (
 	"testing"
 
-	"github.com/htekdev/hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/schema"
 )
 
 // TestParseGitStatus tests parsing of git diff --name-status output

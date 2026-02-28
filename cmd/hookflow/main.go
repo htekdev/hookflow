@@ -10,11 +10,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/htekdev/hookflow/internal/discover"
-	"github.com/htekdev/hookflow/internal/event"
-	"github.com/htekdev/hookflow/internal/runner"
-	"github.com/htekdev/hookflow/internal/schema"
-	"github.com/htekdev/hookflow/internal/trigger"
+	"github.com/htekdev/gh-hookflow/internal/discover"
+	"github.com/htekdev/gh-hookflow/internal/event"
+	"github.com/htekdev/gh-hookflow/internal/runner"
+	"github.com/htekdev/gh-hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/trigger"
 	"github.com/spf13/cobra"
 )
 

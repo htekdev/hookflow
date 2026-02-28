@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/htekdev/hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/schema"
 )
 
 // RawHookInput represents the raw input from a Copilot hook

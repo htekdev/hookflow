@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/htekdev/hookflow/internal/runner"
-	"github.com/htekdev/hookflow/internal/schema"
-	"github.com/htekdev/hookflow/internal/trigger"
+	"github.com/htekdev/gh-hookflow/internal/runner"
+	"github.com/htekdev/gh-hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/trigger"
 )
 
 // TestIntegrationHookEventTriggersWorkflowSuccess tests a hook event triggering a workflow with successful steps

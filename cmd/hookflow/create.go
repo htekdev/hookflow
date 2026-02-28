@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/htekdev/hookflow/internal/ai"
-	"github.com/htekdev/hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/ai"
+	"github.com/htekdev/gh-hookflow/internal/schema"
 	"github.com/spf13/cobra"
 )
 

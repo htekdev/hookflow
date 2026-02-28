@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/htekdev/hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/schema"
 )
 
 // TestVersionCommand tests the version command execution

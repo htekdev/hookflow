@@ -1,4 +1,4 @@
-module github.com/htekdev/hookflow
+module github.com/htekdev/gh-hookflow
 
 go 1.24
 

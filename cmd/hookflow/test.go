@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/htekdev/hookflow/internal/schema"
-	"github.com/htekdev/hookflow/internal/trigger"
+	"github.com/htekdev/gh-hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/trigger"
 	"github.com/spf13/cobra"
 )
 

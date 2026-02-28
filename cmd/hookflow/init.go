@@ -108,7 +108,7 @@ func generateHooksJSON() string {
 // generateExampleWorkflow creates an example workflow file
 func generateExampleWorkflow() string {
 	return `# Example hookflow workflow
-# Learn more: https://github.com/htekdev/hookflow
+# Learn more: https://github.com/htekdev/gh-hookflow
 
 name: Example Workflow
 description: An example workflow that demonstrates hookflow features

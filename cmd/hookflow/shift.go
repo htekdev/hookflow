@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/htekdev/hookflow/internal/ai"
+	"github.com/htekdev/gh-hookflow/internal/ai"
 	"github.com/spf13/cobra"
 )
 

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/htekdev/hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/schema"
 )
 
 // ============================================================================

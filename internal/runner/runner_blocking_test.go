@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/htekdev/hookflow/internal/schema"
+	"github.com/htekdev/gh-hookflow/internal/schema"
 )
 
 // TestRunWithBlockingAllowOnSuccess tests that a successful workflow returns allow
