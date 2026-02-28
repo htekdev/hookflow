@@ -141,7 +141,7 @@ func runShiftLeft(dir string, dryRun bool) error {
 	if err := client.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start AI client: %w\nMake sure you have GitHub Copilot CLI installed and authenticated", err)
 	}
-	defer client.Stop()
+	defer func() { _ = client.Stop() }()
 
 	// Build prompt
 	prompt := buildShiftLeftPrompt(workflows)
@@ -231,7 +231,7 @@ func runShiftRight(dir string, dryRun bool) error {
 	if err := client.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start AI client: %w\nMake sure you have GitHub Copilot CLI installed and authenticated", err)
 	}
-	defer client.Stop()
+	defer func() { _ = client.Stop() }()
 
 	// Build prompt
 	prompt := buildShiftRightPrompt(workflows)

@@ -183,13 +183,13 @@ func TestCleanOldLogs(t *testing.T) {
 	newFile := filepath.Join(tmpDir, "hookflow-2099-01-01.log")
 	otherFile := filepath.Join(tmpDir, "other.txt")
 
-	os.WriteFile(oldFile, []byte("old"), 0644)
-	os.WriteFile(newFile, []byte("new"), 0644)
-	os.WriteFile(otherFile, []byte("other"), 0644)
+	_ = os.WriteFile(oldFile, []byte("old"), 0644)
+	_ = os.WriteFile(newFile, []byte("new"), 0644)
+	_ = os.WriteFile(otherFile, []byte("other"), 0644)
 
 	// Set old modification time
 	oldTime := time.Now().AddDate(0, 0, -30)
-	os.Chtimes(oldFile, oldTime, oldTime)
+	_ = os.Chtimes(oldFile, oldTime, oldTime)
 
 	// Run cleanup
 	cleanOldLogs(tmpDir, 7)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -2536,6 +2537,11 @@ steps:
 func TestShellScriptValidationWorkflow(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping on Windows - requires bash")
+	}
+	
+	// Check if bash is available
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("Skipping - bash not available")
 	}
 
 	tmpDir, err := os.MkdirTemp("", "hookflow-shell-test-*")

@@ -63,7 +63,7 @@ func runCreate(dir, prompt, outputName string, dryRun bool) error {
 	if err := client.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start AI client: %w\nMake sure you have GitHub Copilot CLI installed and authenticated", err)
 	}
-	defer client.Stop()
+	defer func() { _ = client.Stop() }()
 
 	fmt.Println("Generating workflow...")
 
@@ -114,7 +114,7 @@ func runCreate(dir, prompt, outputName string, dryRun bool) error {
 	if err := os.WriteFile(tempFile, []byte(result.YAML), 0644); err != nil {
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
-	defer os.Remove(tempFile)
+	defer func() { _ = os.Remove(tempFile) }()
 
 	validation := schema.ValidateWorkflow(tempFile)
 	if !validation.Valid {

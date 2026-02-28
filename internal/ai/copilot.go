@@ -76,7 +76,7 @@ func (c *Client) GenerateWorkflow(ctx context.Context, prompt string) (*Generate
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
-	defer session.Destroy()
+	defer func() { _ = session.Destroy() }()
 
 	// Build the prompt with context
 	fullPrompt := buildWorkflowPrompt(prompt)
