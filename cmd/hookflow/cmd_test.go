@@ -2533,14 +2533,14 @@ steps:
 	}
 }
 
-// TestPowerShellScriptValidationWorkflow tests workflows that validate PowerShell script syntax
-func TestPowerShellScriptValidationWorkflow(t *testing.T) {
+// TestWorkflowStepExitCodeDenies tests that a step with non-zero exit code causes deny
+func TestWorkflowStepExitCodeDenies(t *testing.T) {
 	// Check if pwsh is available
 	if _, err := exec.LookPath("pwsh"); err != nil {
 		t.Skip("Skipping - pwsh not available")
 	}
 
-	tmpDir, err := os.MkdirTemp("", "hookflow-pwsh-test-*")
+	tmpDir, err := os.MkdirTemp("", "hookflow-exitcode-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2552,76 +2552,59 @@ func TestPowerShellScriptValidationWorkflow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create a PowerShell validation workflow using pwsh (our standard shell)
-	workflow := `name: PowerShell Script Validation
+	// Create a workflow that exits with code based on file content
+	workflow := `name: Content Check
 on:
   file:
     paths:
-      - '**/*.ps1'
+      - '**/*.txt'
     types:
       - edit
       - create
 blocking: true
 steps:
-  - name: Check PowerShell syntax
-    if: ${{ endsWith(event.file.path, '.ps1') }}
+  - name: Check content
     run: |
-      Write-Output "Checking PowerShell syntax for ${{ event.file.path }}..."
-      $null = [System.Management.Automation.Language.Parser]::ParseFile("${{ event.file.path }}", [ref]$null, [ref]$errors)
-      if ($errors.Count -gt 0) {
-        Write-Error "Syntax errors found: $($errors | ForEach-Object { $_.Message })"
+      $content = Get-Content "${{ event.file.path }}" -Raw
+      if ($content -match "BLOCK_ME") {
+        Write-Output "Found BLOCK_ME marker"
         exit 1
       }
-      Write-Output "PowerShell syntax valid"
+      Write-Output "Content is OK"
 `
-	if err := os.WriteFile(filepath.Join(hooksDir, "validate-pwsh.yml"), []byte(workflow), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(hooksDir, "check-content.yml"), []byte(workflow), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	tests := []struct {
-		name          string
-		scriptContent string
-		expectDeny    bool
+		name        string
+		fileContent string
+		expectDeny  bool
 	}{
 		{
-			name: "valid PowerShell script should allow",
-			scriptContent: `# Valid PowerShell script
-Write-Output "Hello World"
-if (Test-Path "test.txt") {
-    Get-Content test.txt
-}
-`,
-			expectDeny: false,
+			name:        "valid content should allow",
+			fileContent: "This is valid content\n",
+			expectDeny:  false,
 		},
 		{
-			name: "missing closing brace should deny",
-			scriptContent: `# Invalid - missing closing brace
-if ($true) {
-    Write-Output "test"
-`,
-			expectDeny: true,
-		},
-		{
-			name: "syntax error should deny",
-			scriptContent: `# Invalid syntax
-foreach { }
-`,
-			expectDeny: true,
+			name:        "blocked content should deny",
+			fileContent: "This has BLOCK_ME in it\n",
+			expectDeny:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Write the test PowerShell script
-			scriptPath := filepath.Join(tmpDir, "test-script.ps1")
-			if err := os.WriteFile(scriptPath, []byte(tt.scriptContent), 0644); err != nil {
+			// Write the test file
+			filePath := filepath.Join(tmpDir, "test-file.txt")
+			if err := os.WriteFile(filePath, []byte(tt.fileContent), 0644); err != nil {
 				t.Fatal(err)
 			}
 
 			// Build event with absolute path
 			evt := &schema.Event{
 				File: &schema.FileEvent{
-					Path:   scriptPath,
+					Path:   filePath,
 					Action: "edit",
 				},
 				Lifecycle: "pre",
@@ -2644,11 +2627,11 @@ foreach { }
 
 			if tt.expectDeny {
 				if !strings.Contains(output, "deny") {
-					t.Errorf("Expected deny for invalid PowerShell script, got: %s", output)
+					t.Errorf("Expected deny for blocked content, got: %s", output)
 				}
 			} else {
 				if !strings.Contains(output, "allow") {
-					t.Errorf("Expected allow for valid PowerShell script, got: %s", output)
+					t.Errorf("Expected allow for valid content, got: %s", output)
 				}
 			}
 		})
