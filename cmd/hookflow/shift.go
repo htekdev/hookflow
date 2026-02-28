@@ -301,7 +301,7 @@ on:
   file:
     paths:
       - '**/*.ts'
-    actions:
+    types:
       - edit
 
 For commit-based checks, use commit triggers:

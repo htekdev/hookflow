@@ -915,9 +915,9 @@ steps:
 	}
 }
 
-// TestFileTriggerWithActionsMatches tests that file trigger with 'actions' field matches correctly
-func TestFileTriggerWithActionsMatches(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "hookflow-file-actions-*")
+// TestFileTriggerWithTypesMatches tests that file trigger with 'types' field matches correctly
+func TestFileTriggerWithTypesMatches(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-file-types-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -928,13 +928,13 @@ func TestFileTriggerWithActionsMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create workflow using 'actions' (alias for 'types')
+	// Create workflow using 'types' for file events
 	workflow := `name: Block plugin.json edits
 on:
   file:
     paths:
       - 'plugin.json'
-    actions:
+    types:
       - edit
 blocking: true
 steps:
@@ -978,8 +978,8 @@ steps:
 	}
 }
 
-// TestFileTriggerWithTypesMatches tests that file trigger with 'types' field matches correctly
-func TestFileTriggerWithTypesMatches(t *testing.T) {
+// TestFileTriggerWithMultipleTypes tests that file trigger matches multiple types
+func TestFileTriggerWithMultipleTypes(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "hookflow-file-types-*")
 	if err != nil {
 		t.Fatal(err)
@@ -1037,8 +1037,8 @@ steps:
 	}
 }
 
-// TestFileTriggerNoMatchWrongAction tests that file trigger doesn't match wrong action
-func TestFileTriggerNoMatchWrongAction(t *testing.T) {
+// TestFileTriggerNoMatchWrongType tests that file trigger doesn't match wrong type
+func TestFileTriggerNoMatchWrongType(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "hookflow-file-nomatch-*")
 	if err != nil {
 		t.Fatal(err)
@@ -1050,13 +1050,13 @@ func TestFileTriggerNoMatchWrongAction(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create workflow that only matches 'create' action
+	// Create workflow that only matches 'create' type
 	workflow := `name: Block creates only
 on:
   file:
     paths:
       - '**/*.json'
-    actions:
+    types:
       - create
 blocking: true
 steps:

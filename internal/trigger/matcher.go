@@ -126,11 +126,10 @@ func (m *Matcher) matchHooksTrigger(trigger *schema.HooksTrigger, event *schema.
 
 // matchFileTrigger checks if a file event matches a file trigger
 func (m *Matcher) matchFileTrigger(trigger *schema.FileTrigger, event *schema.FileEvent) bool {
-	// Check file types (supports both 'types' and 'actions' fields)
-	types := trigger.GetTypes()
-	if len(types) > 0 {
+	// Check file types
+	if len(trigger.Types) > 0 {
 		found := false
-		for _, t := range types {
+		for _, t := range trigger.Types {
 			if t == event.Action {
 				found = true
 				break
