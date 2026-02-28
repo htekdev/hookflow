@@ -88,27 +88,54 @@ type ToolTrigger struct {
 
 // FileTrigger matches file create/edit events
 type FileTrigger struct {
+	Lifecycle   string   `yaml:"lifecycle,omitempty" json:"lifecycle,omitempty"`       // pre (default) or post
 	Types       []string `yaml:"types,omitempty" json:"types,omitempty"`               // create, edit, delete
 	Paths       []string `yaml:"paths,omitempty" json:"paths,omitempty"`               // Include patterns
 	PathsIgnore []string `yaml:"paths-ignore,omitempty" json:"paths-ignore,omitempty"` // Exclude patterns
 }
 
+// GetLifecycle returns the lifecycle (defaults to "pre")
+func (f *FileTrigger) GetLifecycle() string {
+	if f.Lifecycle == "" {
+		return "pre"
+	}
+	return f.Lifecycle
+}
+
 // CommitTrigger matches git commit events
 type CommitTrigger struct {
-	Paths         []string `yaml:"paths,omitempty" json:"paths,omitempty"`
-	PathsIgnore   []string `yaml:"paths-ignore,omitempty" json:"paths-ignore,omitempty"`
-	Branches      []string `yaml:"branches,omitempty" json:"branches,omitempty"`
+	Lifecycle      string   `yaml:"lifecycle,omitempty" json:"lifecycle,omitempty"` // pre (default) or post
+	Paths          []string `yaml:"paths,omitempty" json:"paths,omitempty"`
+	PathsIgnore    []string `yaml:"paths-ignore,omitempty" json:"paths-ignore,omitempty"`
+	Branches       []string `yaml:"branches,omitempty" json:"branches,omitempty"`
 	BranchesIgnore []string `yaml:"branches-ignore,omitempty" json:"branches-ignore,omitempty"`
+}
+
+// GetLifecycle returns the lifecycle (defaults to "pre")
+func (c *CommitTrigger) GetLifecycle() string {
+	if c.Lifecycle == "" {
+		return "pre"
+	}
+	return c.Lifecycle
 }
 
 // PushTrigger matches git push events
 type PushTrigger struct {
-	Paths         []string `yaml:"paths,omitempty" json:"paths,omitempty"`
-	PathsIgnore   []string `yaml:"paths-ignore,omitempty" json:"paths-ignore,omitempty"`
-	Branches      []string `yaml:"branches,omitempty" json:"branches,omitempty"`
+	Lifecycle      string   `yaml:"lifecycle,omitempty" json:"lifecycle,omitempty"` // pre (default) or post
+	Paths          []string `yaml:"paths,omitempty" json:"paths,omitempty"`
+	PathsIgnore    []string `yaml:"paths-ignore,omitempty" json:"paths-ignore,omitempty"`
+	Branches       []string `yaml:"branches,omitempty" json:"branches,omitempty"`
 	BranchesIgnore []string `yaml:"branches-ignore,omitempty" json:"branches-ignore,omitempty"`
-	Tags          []string `yaml:"tags,omitempty" json:"tags,omitempty"`
-	TagsIgnore    []string `yaml:"tags-ignore,omitempty" json:"tags-ignore,omitempty"`
+	Tags           []string `yaml:"tags,omitempty" json:"tags,omitempty"`
+	TagsIgnore     []string `yaml:"tags-ignore,omitempty" json:"tags-ignore,omitempty"`
+}
+
+// GetLifecycle returns the lifecycle (defaults to "pre")
+func (p *PushTrigger) GetLifecycle() string {
+	if p.Lifecycle == "" {
+		return "pre"
+	}
+	return p.Lifecycle
 }
 
 // Step represents a single step in a workflow
@@ -134,6 +161,15 @@ type Event struct {
 	Push      *PushEvent   `json:"push,omitempty"`
 	Cwd       string       `json:"cwd"`
 	Timestamp string       `json:"timestamp"`
+	Lifecycle string       `json:"lifecycle,omitempty"` // pre or post (defaults to pre)
+}
+
+// GetLifecycle returns the event lifecycle (defaults to "pre")
+func (e *Event) GetLifecycle() string {
+	if e.Lifecycle == "" {
+		return "pre"
+	}
+	return e.Lifecycle
 }
 
 // HookEvent contains hook-specific event data

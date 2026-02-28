@@ -143,6 +143,10 @@ Use --event to pass a pre-built event JSON (legacy mode).`,
 		workflow, _ := cmd.Flags().GetString("workflow")
 		dir, _ := cmd.Flags().GetString("dir")
 		raw, _ := cmd.Flags().GetBool("raw")
+		eventType, _ := cmd.Flags().GetString("event-type")
+
+		// Convert event type to lifecycle
+		lifecycle := eventTypeToLifecycle(eventType)
 
 		if dir == "" {
 			var err error
@@ -159,11 +163,11 @@ Use --event to pass a pre-built event JSON (legacy mode).`,
 
 		// If --raw flag is set, use the new event detection
 		if raw {
-			return runWithRawInput(dir, eventStr)
+			return runWithRawInput(dir, eventStr, lifecycle)
 		}
 
 		// Legacy mode: pre-built event JSON
-		return runMatchingWorkflows(dir, eventStr)
+		return runMatchingWorkflows(dir, eventStr, lifecycle)
 	},
 }
 
@@ -200,6 +204,17 @@ func init() {
 	runCmd.Flags().StringP("workflow", "w", "", "Specific workflow to run")
 	runCmd.Flags().StringP("dir", "d", "", "Directory to search (default: current directory)")
 	runCmd.Flags().BoolP("raw", "r", false, "Accept raw hook input and auto-detect event type")
+	runCmd.Flags().StringP("event-type", "t", "preToolUse", "Hook event type: preToolUse or postToolUse")
+}
+
+// eventTypeToLifecycle converts Copilot hook event type to workflow lifecycle
+func eventTypeToLifecycle(eventType string) string {
+	switch eventType {
+	case "postToolUse", "post":
+		return "post"
+	default:
+		return "pre" // preToolUse, pre, or any unknown defaults to pre
+	}
 }
 
 // runWorkflow loads and executes a specific workflow
@@ -226,7 +241,7 @@ func runWorkflow(dir, workflowName string) error {
 }
 
 // runWithRawInput handles raw Copilot hook input and auto-detects event type
-func runWithRawInput(dir, inputStr string) error {
+func runWithRawInput(dir, inputStr, lifecycle string) error {
 	// Read from stdin if "-"
 	var input []byte
 	var err error
@@ -259,6 +274,9 @@ func runWithRawInput(dir, inputStr string) error {
 	if evt.Cwd == "" {
 		evt.Cwd = dir
 	}
+
+	// Set lifecycle from CLI flag
+	evt.Lifecycle = lifecycle
 
 	// Discover and run matching workflows
 	return runMatchingWorkflowsWithEvent(dir, evt)
@@ -369,7 +387,7 @@ func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
 }
 
 // runMatchingWorkflows discovers and runs all matching workflows
-func runMatchingWorkflows(dir, eventStr string) error {
+func runMatchingWorkflows(dir, eventStr, lifecycle string) error {
 	// Parse the event
 	var eventData map[string]interface{}
 	
@@ -394,6 +412,9 @@ func runMatchingWorkflows(dir, eventStr string) error {
 	
 	// Convert to Event struct
 	event := parseEventData(eventData)
+	
+	// Set lifecycle from CLI flag
+	event.Lifecycle = lifecycle
 	
 	// Discover workflows
 	workflowDir := filepath.Join(dir, ".github", "hooks")

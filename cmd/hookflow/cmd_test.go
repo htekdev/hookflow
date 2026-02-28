@@ -468,7 +468,7 @@ steps:
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err = runMatchingWorkflows(tmpDir, eventJSON)
+	err = runMatchingWorkflows(tmpDir, eventJSON, "pre")
 
 	_ = w.Close()
 	os.Stdout = oldStdout
@@ -519,7 +519,7 @@ steps:
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err = runMatchingWorkflows(tmpDir, eventJSON)
+	err = runMatchingWorkflows(tmpDir, eventJSON, "pre")
 
 	_ = w.Close()
 	os.Stdout = oldStdout
@@ -557,7 +557,7 @@ func TestRunMatchingWorkflowsEmptyDir(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err = runMatchingWorkflows(tmpDir, eventJSON)
+	err = runMatchingWorkflows(tmpDir, eventJSON, "pre")
 
 	_ = w.Close()
 	os.Stdout = oldStdout
@@ -1092,5 +1092,977 @@ steps:
 	// Should allow because action doesn't match (edit vs create)
 	if !strings.Contains(output, "allow") {
 		t.Errorf("Expected allow when action doesn't match, got: %s", output)
+	}
+}
+
+// TestConditionalStepWithToolArgsNewStr tests that a step with if condition on event.tool.args.new_str works
+func TestConditionalStepWithToolArgsNewStr(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-conditional-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create workflow with conditional step based on new_str content
+	workflow := `name: Block password in code
+on:
+  file:
+    paths:
+      - '**/*.js'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Check for password
+    if: contains(event.tool.args.new_str, 'password')
+    run: |
+      echo "Found password in code!"
+      exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "block-password.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test case 1: new_str contains "password" - should deny
+	t.Run("matches when new_str contains password", func(t *testing.T) {
+		evt := &schema.Event{
+			File: &schema.FileEvent{
+				Path:   "src/auth.js",
+				Action: "edit",
+			},
+			Tool: &schema.ToolEvent{
+				Name: "edit",
+				Args: map[string]interface{}{
+					"path":    "src/auth.js",
+					"new_str": "const password = 'secret123';",
+				},
+			},
+			Cwd: tmpDir,
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		if !strings.Contains(output, "deny") {
+			t.Errorf("Expected deny when new_str contains 'password', got: %s", output)
+		}
+	})
+
+	// Test case 2: new_str does NOT contain "password" - should allow (step skipped)
+	t.Run("allows when new_str does not contain password", func(t *testing.T) {
+		evt := &schema.Event{
+			File: &schema.FileEvent{
+				Path:   "src/utils.js",
+				Action: "edit",
+			},
+			Tool: &schema.ToolEvent{
+				Name: "edit",
+				Args: map[string]interface{}{
+					"path":    "src/utils.js",
+					"new_str": "const username = 'john';",
+				},
+			},
+			Cwd: tmpDir,
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		// When step is skipped due to if condition, workflow should allow
+		if strings.Contains(output, "deny") {
+			t.Errorf("Expected allow when new_str doesn't contain 'password', got: %s", output)
+		}
+	})
+}
+
+// TestConditionalStepWithFileContent tests conditional step using event.file.content
+func TestConditionalStepWithFileContent(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-file-content-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create workflow with conditional step based on file content
+	workflow := `name: Block API keys in new files
+on:
+  file:
+    paths:
+      - '**/*.env'
+    types:
+      - create
+blocking: true
+steps:
+  - name: Check for API key
+    if: contains(event.file.content, 'API_KEY')
+    run: |
+      echo "Found API_KEY in file!"
+      exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "block-apikey.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test case 1: content contains "API_KEY" - should deny
+	t.Run("denies when file content contains API_KEY", func(t *testing.T) {
+		evt := &schema.Event{
+			File: &schema.FileEvent{
+				Path:    "config/.env",
+				Action:  "create",
+				Content: "DATABASE_URL=postgres://localhost\nAPI_KEY=sk-12345\n",
+			},
+			Tool: &schema.ToolEvent{
+				Name: "create",
+				Args: map[string]interface{}{
+					"path":      "config/.env",
+					"file_text": "DATABASE_URL=postgres://localhost\nAPI_KEY=sk-12345\n",
+				},
+			},
+			Cwd: tmpDir,
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		if !strings.Contains(output, "deny") {
+			t.Errorf("Expected deny when file content contains 'API_KEY', got: %s", output)
+		}
+	})
+
+	// Test case 2: content does NOT contain "API_KEY" - should allow
+	t.Run("allows when file content does not contain API_KEY", func(t *testing.T) {
+		evt := &schema.Event{
+			File: &schema.FileEvent{
+				Path:    "config/.env",
+				Action:  "create",
+				Content: "DATABASE_URL=postgres://localhost\nDEBUG=true\n",
+			},
+			Tool: &schema.ToolEvent{
+				Name: "create",
+				Args: map[string]interface{}{
+					"path":      "config/.env",
+					"file_text": "DATABASE_URL=postgres://localhost\nDEBUG=true\n",
+				},
+			},
+			Cwd: tmpDir,
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		if strings.Contains(output, "deny") {
+			t.Errorf("Expected allow when file content doesn't contain 'API_KEY', got: %s", output)
+		}
+	})
+}
+
+// TestConditionalStepFileEventWithoutToolContext tests what happens when file trigger
+// tries to access event.tool.args.new_str but Tool context is not set
+func TestConditionalStepFileEventWithoutToolContext(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-file-no-tool-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create workflow with conditional step based on new_str content
+	workflow := `name: Block password in code
+on:
+  file:
+    paths:
+      - '**/*.js'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Check for password
+    if: contains(event.tool.args.new_str, 'password')
+    run: |
+      echo "Found password in code!"
+      exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "block-password.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// File event WITHOUT Tool context - simulates pure file trigger scenario
+	t.Run("file event without tool context", func(t *testing.T) {
+		evt := &schema.Event{
+			File: &schema.FileEvent{
+				Path:   "src/auth.js",
+				Action: "edit",
+			},
+			// Tool is nil - no tool context available
+			Cwd: tmpDir,
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		// When Tool is nil, event.tool.args.new_str should evaluate to empty/nil
+		// The step should be skipped (if condition false) and workflow should allow
+		t.Logf("Output: %s", output)
+		// Document current behavior - what actually happens?
+		if strings.Contains(output, "deny") {
+			t.Logf("BEHAVIOR: Denies when Tool context is nil")
+		} else if strings.Contains(output, "allow") {
+			t.Logf("BEHAVIOR: Allows when Tool context is nil (step skipped)")
+		} else {
+			t.Logf("BEHAVIOR: Unknown - output: %s", output)
+		}
+	})
+}
+
+// ============================================================================
+// LIFECYCLE TESTS
+// ============================================================================
+
+// TestLifecyclePreMatchesPre tests that pre lifecycle triggers match pre events
+func TestLifecyclePreMatchesPre(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-lifecycle-pre-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Workflow with explicit lifecycle: pre
+	workflow := `name: Pre-file validation
+on:
+  file:
+    lifecycle: pre
+    paths:
+      - '**/*.js'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Block
+    run: exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "pre-check.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pre event should match
+	evt := &schema.Event{
+		File: &schema.FileEvent{
+			Path:   "src/app.js",
+			Action: "edit",
+		},
+		Cwd:       tmpDir,
+		Lifecycle: "pre",
+	}
+
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+	_ = stdoutW.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(stdoutR)
+	output := buf.String()
+
+	if !strings.Contains(output, "deny") {
+		t.Errorf("Expected deny for pre event matching pre workflow, got: %s", output)
+	}
+}
+
+// TestLifecyclePostMatchesPost tests that post lifecycle triggers match post events
+func TestLifecyclePostMatchesPost(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-lifecycle-post-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Workflow with lifecycle: post
+	workflow := `name: Post-file linting
+on:
+  file:
+    lifecycle: post
+    paths:
+      - '**/*.js'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Lint
+    run: exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "post-lint.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Post event should match
+	evt := &schema.Event{
+		File: &schema.FileEvent{
+			Path:   "src/app.js",
+			Action: "edit",
+		},
+		Cwd:       tmpDir,
+		Lifecycle: "post",
+	}
+
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+	_ = stdoutW.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(stdoutR)
+	output := buf.String()
+
+	if !strings.Contains(output, "deny") {
+		t.Errorf("Expected deny for post event matching post workflow, got: %s", output)
+	}
+}
+
+// TestLifecyclePreDoesNotMatchPost tests that pre workflow doesn't match post event
+func TestLifecyclePreDoesNotMatchPost(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-lifecycle-mismatch-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Workflow with lifecycle: pre (explicit)
+	workflow := `name: Pre-file validation
+on:
+  file:
+    lifecycle: pre
+    paths:
+      - '**/*.js'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Block
+    run: exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "pre-check.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Post event should NOT match pre workflow
+	evt := &schema.Event{
+		File: &schema.FileEvent{
+			Path:   "src/app.js",
+			Action: "edit",
+		},
+		Cwd:       tmpDir,
+		Lifecycle: "post",
+	}
+
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+	_ = stdoutW.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(stdoutR)
+	output := buf.String()
+
+	if strings.Contains(output, "deny") {
+		t.Errorf("Expected allow for post event with pre workflow (no match), got: %s", output)
+	}
+}
+
+// TestLifecyclePostDoesNotMatchPre tests that post workflow doesn't match pre event
+func TestLifecyclePostDoesNotMatchPre(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-lifecycle-mismatch2-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Workflow with lifecycle: post
+	workflow := `name: Post-file linting
+on:
+  file:
+    lifecycle: post
+    paths:
+      - '**/*.js'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Lint
+    run: exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "post-lint.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pre event should NOT match post workflow
+	evt := &schema.Event{
+		File: &schema.FileEvent{
+			Path:   "src/app.js",
+			Action: "edit",
+		},
+		Cwd:       tmpDir,
+		Lifecycle: "pre",
+	}
+
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+	_ = stdoutW.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(stdoutR)
+	output := buf.String()
+
+	if strings.Contains(output, "deny") {
+		t.Errorf("Expected allow for pre event with post workflow (no match), got: %s", output)
+	}
+}
+
+// TestLifecycleDefaultIsPre tests that workflow without lifecycle defaults to pre
+func TestLifecycleDefaultIsPre(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-lifecycle-default-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Workflow WITHOUT lifecycle (should default to pre)
+	workflow := `name: Default lifecycle validation
+on:
+  file:
+    paths:
+      - '**/*.js'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Block
+    run: exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "default-check.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("matches pre event (default)", func(t *testing.T) {
+		evt := &schema.Event{
+			File: &schema.FileEvent{
+				Path:   "src/app.js",
+				Action: "edit",
+			},
+			Cwd:       tmpDir,
+			Lifecycle: "pre",
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		if !strings.Contains(output, "deny") {
+			t.Errorf("Expected deny for pre event with default workflow, got: %s", output)
+		}
+	})
+
+	t.Run("does not match post event", func(t *testing.T) {
+		evt := &schema.Event{
+			File: &schema.FileEvent{
+				Path:   "src/app.js",
+				Action: "edit",
+			},
+			Cwd:       tmpDir,
+			Lifecycle: "post",
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		if strings.Contains(output, "deny") {
+			t.Errorf("Expected allow for post event with default (pre) workflow, got: %s", output)
+		}
+	})
+
+	t.Run("matches empty lifecycle (treated as pre)", func(t *testing.T) {
+		evt := &schema.Event{
+			File: &schema.FileEvent{
+				Path:   "src/app.js",
+				Action: "edit",
+			},
+			Cwd:       tmpDir,
+			Lifecycle: "", // Empty defaults to pre
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		if !strings.Contains(output, "deny") {
+			t.Errorf("Expected deny for empty lifecycle event with default workflow, got: %s", output)
+		}
+	})
+}
+
+// TestLifecycleCommitTrigger tests lifecycle on commit triggers
+func TestLifecycleCommitTrigger(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-commit-lifecycle-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pre-commit workflow
+	preWorkflow := `name: Pre-commit check
+on:
+  commit:
+    lifecycle: pre
+    paths:
+      - 'src/**'
+blocking: true
+steps:
+  - name: Check
+    run: exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "pre-commit.yml"), []byte(preWorkflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Post-commit workflow
+	postWorkflow := `name: Post-commit notification
+on:
+  commit:
+    lifecycle: post
+    paths:
+      - 'src/**'
+blocking: false
+steps:
+  - name: Notify
+    run: echo "Commit done"
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "post-commit.yml"), []byte(postWorkflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("pre commit event matches pre workflow", func(t *testing.T) {
+		evt := &schema.Event{
+			Commit: &schema.CommitEvent{
+				SHA:     "abc123",
+				Message: "test commit",
+				Files:   []schema.FileStatus{{Path: "src/main.go", Status: "modified"}},
+			},
+			Cwd:       tmpDir,
+			Lifecycle: "pre",
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		if !strings.Contains(output, "deny") {
+			t.Errorf("Expected deny for pre commit event, got: %s", output)
+		}
+	})
+
+	t.Run("post commit event matches post workflow", func(t *testing.T) {
+		evt := &schema.Event{
+			Commit: &schema.CommitEvent{
+				SHA:     "abc123",
+				Message: "test commit",
+				Files:   []schema.FileStatus{{Path: "src/main.go", Status: "modified"}},
+			},
+			Cwd:       tmpDir,
+			Lifecycle: "post",
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		// Post workflow is non-blocking and step succeeds
+		if strings.Contains(output, "deny") {
+			t.Errorf("Expected allow for post commit event (non-blocking), got: %s", output)
+		}
+	})
+}
+
+// TestLifecyclePushTrigger tests lifecycle on push triggers
+func TestLifecyclePushTrigger(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-push-lifecycle-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pre-push workflow
+	workflow := `name: Pre-push check
+on:
+  push:
+    lifecycle: pre
+    branches:
+      - main
+blocking: true
+steps:
+  - name: Check
+    run: exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "pre-push.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("pre push matches pre workflow", func(t *testing.T) {
+		evt := &schema.Event{
+			Push: &schema.PushEvent{
+				Ref: "refs/heads/main",
+			},
+			Cwd:       tmpDir,
+			Lifecycle: "pre",
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		if !strings.Contains(output, "deny") {
+			t.Errorf("Expected deny for pre push event, got: %s", output)
+		}
+	})
+
+	t.Run("post push does not match pre workflow", func(t *testing.T) {
+		evt := &schema.Event{
+			Push: &schema.PushEvent{
+				Ref: "refs/heads/main",
+			},
+			Cwd:       tmpDir,
+			Lifecycle: "post",
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		if strings.Contains(output, "deny") {
+			t.Errorf("Expected allow for post push with pre workflow, got: %s", output)
+		}
+	})
+}
+
+// TestLifecycleMixedWorkflows tests having both pre and post workflows
+func TestLifecycleMixedWorkflows(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-mixed-lifecycle-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pre-edit workflow (blocks)
+	preWorkflow := `name: Pre-edit validation
+on:
+  file:
+    lifecycle: pre
+    paths:
+      - '**/*.ts'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Validate
+    run: exit 1
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "pre-edit.yml"), []byte(preWorkflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Post-edit workflow (runs after)
+	postWorkflow := `name: Post-edit linting
+on:
+  file:
+    lifecycle: post
+    paths:
+      - '**/*.ts'
+    types:
+      - edit
+blocking: false
+steps:
+  - name: Lint
+    run: echo "Linting completed"
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "post-edit.yml"), []byte(postWorkflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("pre event only runs pre workflow", func(t *testing.T) {
+		evt := &schema.Event{
+			File: &schema.FileEvent{
+				Path:   "src/index.ts",
+				Action: "edit",
+			},
+			Cwd:       tmpDir,
+			Lifecycle: "pre",
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		// Should deny because pre workflow blocks
+		if !strings.Contains(output, "deny") {
+			t.Errorf("Expected deny for pre event, got: %s", output)
+		}
+		// Should mention pre-edit workflow
+		if !strings.Contains(output, "Pre-edit") {
+			t.Errorf("Expected Pre-edit workflow name in output, got: %s", output)
+		}
+	})
+
+	t.Run("post event only runs post workflow", func(t *testing.T) {
+		evt := &schema.Event{
+			File: &schema.FileEvent{
+				Path:   "src/index.ts",
+				Action: "edit",
+			},
+			Cwd:       tmpDir,
+			Lifecycle: "post",
+		}
+
+		oldStdout := os.Stdout
+		stdoutR, stdoutW, _ := os.Pipe()
+		os.Stdout = stdoutW
+
+		_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+		_ = stdoutW.Close()
+		os.Stdout = oldStdout
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(stdoutR)
+		output := buf.String()
+
+		// Should allow because post workflow is non-blocking
+		if strings.Contains(output, "deny") {
+			t.Errorf("Expected allow for post event (non-blocking), got: %s", output)
+		}
+	})
+}
+
+// ============================================================================
+// EVENT TYPE CONVERSION TESTS
+// ============================================================================
+
+// TestEventTypeToLifecycle tests the conversion from Copilot hook types to lifecycle
+func TestEventTypeToLifecycle(t *testing.T) {
+	tests := []struct {
+		eventType string
+		expected  string
+	}{
+		// Standard Copilot hook types
+		{"preToolUse", "pre"},
+		{"postToolUse", "post"},
+		// Short forms
+		{"pre", "pre"},
+		{"post", "post"},
+		// Unknown defaults to pre
+		{"", "pre"},
+		{"unknown", "pre"},
+		{"something", "pre"},
+		// Future hook types can be added here
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.eventType, func(t *testing.T) {
+			result := eventTypeToLifecycle(tt.eventType)
+			if result != tt.expected {
+				t.Errorf("eventTypeToLifecycle(%q) = %q, want %q", tt.eventType, result, tt.expected)
+			}
+		})
 	}
 }

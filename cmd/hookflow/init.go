@@ -109,14 +109,23 @@ func runInit(dir string, force bool) error {
 // This goes in .github/hooks/hooks.json per Copilot CLI documentation
 func generateHooksJSON() string {
 	// The hook checks for hookflow in PATH first, then falls back to gh hookflow
+	// Both preToolUse and postToolUse hooks are configured with appropriate --event-type
 	return `{
   "version": 1,
   "hooks": {
     "preToolUse": [
       {
         "type": "command",
-        "bash": "if command -v hookflow >/dev/null 2>&1; then hookflow run --raw --dir \"$PWD\"; elif command -v gh >/dev/null 2>&1 && gh extension list 2>/dev/null | grep -q hookflow; then gh hookflow run --raw --dir \"$PWD\"; else echo '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: gh extension install htekdev/gh-hookflow\"}'; fi",
-        "powershell": "$hf = Get-Command hookflow -ErrorAction SilentlyContinue; if ($hf) { hookflow run --raw --dir (Get-Location) } elseif ((Get-Command gh -ErrorAction SilentlyContinue) -and ((gh extension list 2>$null) -match 'hookflow')) { gh hookflow run --raw --dir (Get-Location) } else { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: gh extension install htekdev/gh-hookflow\"}' }",
+        "bash": "if command -v hookflow >/dev/null 2>&1; then hookflow run --raw --event-type preToolUse --dir \"$PWD\"; elif command -v gh >/dev/null 2>&1 && gh extension list 2>/dev/null | grep -q hookflow; then gh hookflow run --raw --event-type preToolUse --dir \"$PWD\"; else echo '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: gh extension install htekdev/gh-hookflow\"}'; fi",
+        "powershell": "$hf = Get-Command hookflow -ErrorAction SilentlyContinue; if ($hf) { hookflow run --raw --event-type preToolUse --dir (Get-Location) } elseif ((Get-Command gh -ErrorAction SilentlyContinue) -and ((gh extension list 2>$null) -match 'hookflow')) { gh hookflow run --raw --event-type preToolUse --dir (Get-Location) } else { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"hookflow required. Install: gh extension install htekdev/gh-hookflow\"}' }",
+        "timeoutSec": 60
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "if command -v hookflow >/dev/null 2>&1; then hookflow run --raw --event-type postToolUse --dir \"$PWD\"; elif command -v gh >/dev/null 2>&1 && gh extension list 2>/dev/null | grep -q hookflow; then gh hookflow run --raw --event-type postToolUse --dir \"$PWD\"; fi",
+        "powershell": "$hf = Get-Command hookflow -ErrorAction SilentlyContinue; if ($hf) { hookflow run --raw --event-type postToolUse --dir (Get-Location) } elseif ((Get-Command gh -ErrorAction SilentlyContinue) -and ((gh extension list 2>$null) -match 'hookflow')) { gh hookflow run --raw --event-type postToolUse --dir (Get-Location) }",
         "timeoutSec": 60
       }
     ]
@@ -194,6 +203,29 @@ concurrency: string   # Concurrency group name
 
 ## Trigger Types
 
+### Lifecycle (pre vs post)
+
+All triggers support a ` + "`lifecycle`" + ` field to control when workflows run:
+
+- **pre** (default): Runs BEFORE the action - can block/deny the operation
+- **post**: Runs AFTER the action - for validation, linting, notifications
+
+` + "```yaml" + `
+# Block before file is created (pre)
+on:
+  file:
+    lifecycle: pre
+    paths: ['**/*.env']
+    types: [create]
+
+# Lint after file is edited (post)
+on:
+  file:
+    lifecycle: post
+    paths: ['**/*.ts']
+    types: [edit]
+` + "```" + `
+
 ### File Trigger
 
 Matches file create/edit/delete operations.
@@ -201,6 +233,7 @@ Matches file create/edit/delete operations.
 ` + "```yaml" + `
 on:
   file:
+    lifecycle: pre        # pre (default) or post
     paths:              # File patterns to match (glob supported)
       - '**/*.env'
       - 'secrets/**'
@@ -230,11 +263,11 @@ Matches git commit events.
 ` + "```yaml" + `
 on:
   commit:
+    lifecycle: pre        # pre (default) or post
     paths:              # Files that must be in the commit
       - 'src/**'
     paths-ignore:
       - '**/*.md'
-    message: 'feat:*'   # Commit message pattern
 ` + "```" + `
 
 ### Push Trigger
@@ -244,6 +277,7 @@ Matches git push events.
 ` + "```yaml" + `
 on:
   push:
+    lifecycle: pre        # pre (default) or post
     branches:
       - main
       - 'release/*'
@@ -259,11 +293,17 @@ Use ` + "`${{ }}`" + ` for dynamic values:
 |------------|-------------|
 | ` + "`${{ event.file.path }}`" + ` | Path of file being edited |
 | ` + "`${{ event.file.action }}`" + ` | Action: edit, create, delete |
+| ` + "`${{ event.file.content }}`" + ` | File content (for create) |
 | ` + "`${{ event.tool.name }}`" + ` | Tool name being called |
 | ` + "`${{ event.tool.args.path }}`" + ` | Tool argument value |
+| ` + "`${{ event.tool.args.new_str }}`" + ` | New content (for edit, pre only) |
 | ` + "`${{ event.commit.message }}`" + ` | Commit message |
 | ` + "`${{ event.commit.sha }}`" + ` | Commit SHA |
+| ` + "`${{ event.lifecycle }}`" + ` | Hook lifecycle: pre or post |
 | ` + "`${{ env.MY_VAR }}`" + ` | Environment variable |
+
+**Note:** ` + "`event.tool.args.new_str`" + ` is only available during **pre** lifecycle for edit operations. 
+For **post** lifecycle, use shell commands to read the actual file from disk.
 
 ### Functions
 
@@ -327,6 +367,41 @@ steps:
       echo "✓ Valid JSON"
 ` + "```" + `
 
+### Post-Edit Linting (TypeScript)
+
+` + "```yaml" + `
+name: Post-Edit TypeScript Lint
+on:
+  file:
+    lifecycle: post        # Run AFTER the edit
+    paths: ['**/*.ts', '**/*.tsx']
+    types: [edit]
+blocking: false            # Non-blocking - just report
+steps:
+  - name: Run ESLint
+    run: |
+      npx eslint "${{ event.file.path }}" --fix
+      echo "✓ Linting complete"
+` + "```" + `
+
+### Block Password Strings (Pre-Edit)
+
+` + "```yaml" + `
+name: Block Hardcoded Passwords
+on:
+  file:
+    lifecycle: pre
+    paths: ['**/*.js', '**/*.ts', '**/*.py']
+    types: [edit, create]
+blocking: true
+steps:
+  - name: Check for passwords
+    if: contains(event.tool.args.new_str, 'password')
+    run: |
+      echo "❌ Hardcoded password detected in edit"
+      exit 1
+` + "```" + `
+
 ### Require Tests for Source Changes
 
 ` + "```yaml" + `
@@ -352,6 +427,13 @@ steps:
 1. Check trigger type matches event (file vs tool vs commit)
 2. Verify path patterns use correct glob syntax
 3. Ensure ` + "`types`" + ` field matches the action (edit/create/delete)
+4. Check ` + "`lifecycle`" + ` matches hook type (pre = preToolUse, post = postToolUse)
+
+### Pre vs Post Confusion
+
+- **pre** workflows run in ` + "`preToolUse`" + ` hook - can block actions
+- **post** workflows run in ` + "`postToolUse`" + ` hook - run after action completes
+- Default is ` + "`pre`" + ` if not specified
 
 ### Validation Errors
 

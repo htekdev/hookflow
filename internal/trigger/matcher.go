@@ -46,21 +46,21 @@ func (m *Matcher) Match(event *schema.Event) bool {
 
 	// Check file trigger
 	if on.File != nil && event.File != nil {
-		if m.matchFileTrigger(on.File, event.File) {
+		if m.matchFileTrigger(on.File, event.File, event.GetLifecycle()) {
 			return true
 		}
 	}
 
 	// Check commit trigger
 	if on.Commit != nil && event.Commit != nil {
-		if m.matchCommitTrigger(on.Commit, event.Commit) {
+		if m.matchCommitTrigger(on.Commit, event.Commit, event.GetLifecycle()) {
 			return true
 		}
 	}
 
 	// Check push trigger
 	if on.Push != nil && event.Push != nil {
-		if m.matchPushTrigger(on.Push, event.Push) {
+		if m.matchPushTrigger(on.Push, event.Push, event.GetLifecycle()) {
 			return true
 		}
 	}
@@ -125,7 +125,12 @@ func (m *Matcher) matchHooksTrigger(trigger *schema.HooksTrigger, event *schema.
 }
 
 // matchFileTrigger checks if a file event matches a file trigger
-func (m *Matcher) matchFileTrigger(trigger *schema.FileTrigger, event *schema.FileEvent) bool {
+func (m *Matcher) matchFileTrigger(trigger *schema.FileTrigger, event *schema.FileEvent, eventLifecycle string) bool {
+	// Check lifecycle first
+	if trigger.GetLifecycle() != eventLifecycle {
+		return false
+	}
+
 	// Check file types
 	if len(trigger.Types) > 0 {
 		found := false
@@ -171,7 +176,12 @@ func (m *Matcher) matchFileTrigger(trigger *schema.FileTrigger, event *schema.Fi
 }
 
 // matchCommitTrigger checks if a commit event matches a commit trigger
-func (m *Matcher) matchCommitTrigger(trigger *schema.CommitTrigger, event *schema.CommitEvent) bool {
+func (m *Matcher) matchCommitTrigger(trigger *schema.CommitTrigger, event *schema.CommitEvent, eventLifecycle string) bool {
+	// Check lifecycle first
+	if trigger.GetLifecycle() != eventLifecycle {
+		return false
+	}
+
 	// Check branches - would need branch info from context
 	// For now, focus on path matching
 
@@ -222,7 +232,12 @@ func (m *Matcher) matchCommitTrigger(trigger *schema.CommitTrigger, event *schem
 }
 
 // matchPushTrigger checks if a push event matches a push trigger
-func (m *Matcher) matchPushTrigger(trigger *schema.PushTrigger, event *schema.PushEvent) bool {
+func (m *Matcher) matchPushTrigger(trigger *schema.PushTrigger, event *schema.PushEvent, eventLifecycle string) bool {
+	// Check lifecycle first
+	if trigger.GetLifecycle() != eventLifecycle {
+		return false
+	}
+
 	// Check branches
 	if len(trigger.Branches) > 0 {
 		branch := extractBranch(event.Ref)
