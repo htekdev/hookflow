@@ -1,7 +1,7 @@
 {
-  "name": "hookflow",
-  "version": "0.0.0",
-  "description": "Local workflow engine for agentic DevOps - run GitHub Actions-like workflows triggered by Copilot agent hooks",
+  "name": "hookflow-cli",
+  "version": "1.0.0",
+  "description": "Agent hook workflow engine - run GitHub Actions-like workflows triggered by Copilot hooks",
   "repository": {
     "type": "git",
     "url": "https://github.com/htekdev/hookflow.git"
