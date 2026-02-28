@@ -95,7 +95,7 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.23'
 
       - name: Run tests
         if: steps.version.outputs.skip != 'true'
