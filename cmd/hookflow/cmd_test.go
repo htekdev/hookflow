@@ -3436,7 +3436,7 @@ steps:
       echo "env_file_blocked"
       exit 1
 `
-	os.WriteFile(filepath.Join(hooksDir, "01-block-env.yml"), []byte(workflow1), 0644)
+	_ = os.WriteFile(filepath.Join(hooksDir, "01-block-env.yml"), []byte(workflow1), 0644)
 
 	// Workflow 2: Validates JSON files (allows them)
 	workflow2 := `name: Validate JSON
@@ -3451,7 +3451,7 @@ steps:
   - name: Validate
     run: echo "json_validated"
 `
-	os.WriteFile(filepath.Join(hooksDir, "02-validate-json.yml"), []byte(workflow2), 0644)
+	_ = os.WriteFile(filepath.Join(hooksDir, "02-validate-json.yml"), []byte(workflow2), 0644)
 
 	// Workflow 3: Blocks secret files
 	// NOTE: Pattern '**/secrets/**' with ** on both sides doesn't work correctly
@@ -3472,7 +3472,7 @@ steps:
       echo "secret_blocked"
       exit 1
 `
-	os.WriteFile(filepath.Join(hooksDir, "03-block-secrets.yml"), []byte(workflow3), 0644)
+	_ = os.WriteFile(filepath.Join(hooksDir, "03-block-secrets.yml"), []byte(workflow3), 0644)
 
 	tests := []struct {
 		name        string
@@ -3601,7 +3601,7 @@ steps:
       echo "aws_key_detected"
       exit 1
 `
-	os.WriteFile(filepath.Join(hooksDir, "check-content.yml"), []byte(workflow), 0644)
+	_ = os.WriteFile(filepath.Join(hooksDir, "check-content.yml"), []byte(workflow), 0644)
 
 	tests := []struct {
 		name        string
@@ -3644,7 +3644,7 @@ steps:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fullPath := filepath.Join(tmpDir, "test.js")
-			os.WriteFile(fullPath, []byte("original"), 0644)
+			_ = os.WriteFile(fullPath, []byte("original"), 0644)
 
 			evt := &schema.Event{
 				File: &schema.FileEvent{
@@ -3731,7 +3731,7 @@ steps:
       echo "console_log_found"
       exit 1
 `
-	os.WriteFile(filepath.Join(hooksDir, "check-new-file.yml"), []byte(workflow), 0644)
+	_ = os.WriteFile(filepath.Join(hooksDir, "check-new-file.yml"), []byte(workflow), 0644)
 
 	tests := []struct {
 		name        string
