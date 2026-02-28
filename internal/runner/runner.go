@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 
@@ -357,6 +356,18 @@ func (r *Runner) runCommand(ctx context.Context, step schema.Step, name string, 
 	var cmd *exec.Cmd
 	switch shell {
 	case "pwsh", "powershell":
+		// Check if pwsh is available
+		if _, err := exec.LookPath("pwsh"); err != nil {
+			return StepResult{
+				Name:    name,
+				Success: false,
+				Error: fmt.Errorf("pwsh (PowerShell Core) not found. Install it from: https://github.com/PowerShell/PowerShell/releases\n" +
+					"  Windows: winget install Microsoft.PowerShell\n" +
+					"  macOS: brew install powershell\n" +
+					"  Linux: https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux"),
+				Duration: time.Since(start),
+			}
+		}
 		cmd = exec.CommandContext(ctx, "pwsh", "-NoProfile", "-NonInteractive", "-Command", command)
 	case "bash":
 		cmd = exec.CommandContext(ctx, "bash", "-c", command)
@@ -504,10 +515,8 @@ func (r *Runner) runAction(ctx context.Context, step schema.Step, name string, s
 	}
 }
 
-// defaultShell returns the default shell for the current OS
+// defaultShell returns the default shell for workflows
+// We standardize on PowerShell Core (pwsh) for cross-platform consistency
 func defaultShell() string {
-	if runtime.GOOS == "windows" {
-		return "pwsh"
-	}
-	return "bash"
+	return "pwsh"
 }
