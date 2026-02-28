@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -16,11 +17,11 @@ import (
 // Shell Type Tests
 // ============================================================================
 
-// TestShellTypeBash tests bash shell execution
+// TestShellTypeBash tests bash shell execution when explicitly specified
 func TestShellTypeBash(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		// bash might not be available on Windows
-		t.Skip("Skipping bash test on Windows")
+	// Skip if bash is not available
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("Skipping - bash not available")
 	}
 
 	workflow := &schema.Workflow{
@@ -51,10 +52,11 @@ func TestShellTypeBash(t *testing.T) {
 	}
 }
 
-// TestShellTypeSh tests sh shell execution
+// TestShellTypeSh tests sh shell execution when explicitly specified
 func TestShellTypeSh(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping sh test on Windows")
+	// Skip if sh is not available
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("Skipping - sh not available")
 	}
 
 	workflow := &schema.Workflow{
@@ -191,13 +193,11 @@ func TestShellTypeDefaultOnWindows(t *testing.T) {
 }
 
 // TestShellTypeDefaultOnUnix tests default shell on Unix
+// NOTE: We standardized on pwsh (PowerShell Core) as the default shell for cross-platform consistency
 func TestShellTypeDefaultOnUnix(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping Unix-specific default shell test")
-	}
-
-	if defaultShell() != "bash" {
-		t.Errorf("Expected default shell on Unix to be 'bash', got: %s", defaultShell())
+	// Default shell is now pwsh for all platforms
+	if defaultShell() != "pwsh" {
+		t.Errorf("Expected default shell to be 'pwsh', got: %s", defaultShell())
 	}
 }
 
@@ -932,12 +932,13 @@ func TestEnvVarInterpolationInCommand(t *testing.T) {
 
 // TestStepEnvVarAdded tests that step env vars are added to the process environment
 func TestStepEnvVarAdded(t *testing.T) {
-	var cmd string
-	if runtime.GOOS == "windows" {
-		cmd = "Write-Output $env:STEP_VAR"
-	} else {
-		cmd = "echo $STEP_VAR"
+	// Skip if pwsh is not available
+	if _, err := exec.LookPath("pwsh"); err != nil {
+		t.Skip("pwsh not available")
 	}
+
+	// Use pwsh syntax since that's the default shell
+	cmd := "Write-Output $env:STEP_VAR"
 
 	workflow := &schema.Workflow{
 		Name: "test-step-env",
@@ -971,12 +972,13 @@ func TestStepEnvVarAdded(t *testing.T) {
 
 // TestEnvVarWithExpression tests env var value containing expression
 func TestEnvVarWithExpression(t *testing.T) {
-	var cmd string
-	if runtime.GOOS == "windows" {
-		cmd = "Write-Output $env:DYNAMIC_VAR"
-	} else {
-		cmd = "echo $DYNAMIC_VAR"
+	// Skip if pwsh is not available
+	if _, err := exec.LookPath("pwsh"); err != nil {
+		t.Skip("pwsh not available")
 	}
+
+	// Use pwsh syntax since that's the default shell
+	cmd := "Write-Output $env:DYNAMIC_VAR"
 
 	workflow := &schema.Workflow{
 		Name: "test-env-expr",

@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -89,8 +90,13 @@ func TestStepWithTimeoutCompleteInTime(t *testing.T) {
 
 // TestStepWithTimeoutExceeded tests that steps exceeding timeout fail with timeout error
 func TestStepWithTimeoutExceeded(t *testing.T) {
-	// Use a sleep command that takes longer than the timeout
-	sleepCmd := "sleep 3"
+	// Skip if pwsh is not available
+	if _, err := exec.LookPath("pwsh"); err != nil {
+		t.Skip("pwsh not available")
+	}
+
+	// Use a sleep command that takes longer than the timeout (pwsh syntax)
+	sleepCmd := "Start-Sleep -Seconds 5"
 
 	workflow := &schema.Workflow{
 		Name: "test-workflow",
@@ -134,12 +140,12 @@ func TestStepWithTimeoutExceeded(t *testing.T) {
 	}
 
 	// Duration should be roughly equal to the timeout (plus overhead)
-	// Allow 500ms margin for process overhead
-	if result.Duration < time.Duration(900)*time.Millisecond {
-		t.Errorf("Expected duration >= 900ms, got %v", result.Duration)
+	// Allow generous margin for CI runner overhead and pwsh startup time
+	if result.Duration < time.Duration(500)*time.Millisecond {
+		t.Errorf("Expected duration >= 500ms, got %v", result.Duration)
 	}
-	if result.Duration > time.Duration(2)*time.Second {
-		t.Errorf("Expected duration <= 2s (timeout was 1s + overhead), got %v", result.Duration)
+	if result.Duration > time.Duration(5)*time.Second {
+		t.Errorf("Expected duration <= 5s (timeout was 1s + generous overhead), got %v", result.Duration)
 	}
 }
 

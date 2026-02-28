@@ -2533,18 +2533,14 @@ steps:
 	}
 }
 
-// TestShellScriptValidationWorkflow tests workflows that validate shell script syntax
-func TestShellScriptValidationWorkflow(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on Windows - requires bash")
-	}
-	
-	// Check if bash is available
-	if _, err := exec.LookPath("bash"); err != nil {
-		t.Skip("Skipping - bash not available")
+// TestPowerShellScriptValidationWorkflow tests workflows that validate PowerShell script syntax
+func TestPowerShellScriptValidationWorkflow(t *testing.T) {
+	// Check if pwsh is available
+	if _, err := exec.LookPath("pwsh"); err != nil {
+		t.Skip("Skipping - pwsh not available")
 	}
 
-	tmpDir, err := os.MkdirTemp("", "hookflow-shell-test-*")
+	tmpDir, err := os.MkdirTemp("", "hookflow-pwsh-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2556,26 +2552,29 @@ func TestShellScriptValidationWorkflow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create a shell validation workflow
-	workflow := `name: Shell Script Validation
+	// Create a PowerShell validation workflow using pwsh (our standard shell)
+	workflow := `name: PowerShell Script Validation
 on:
   file:
     paths:
-      - '**/*.sh'
+      - '**/*.ps1'
     types:
       - edit
       - create
 blocking: true
 steps:
-  - name: Check shell syntax
-    if: ${{ endsWith(event.file.path, '.sh') }}
-    shell: bash
+  - name: Check PowerShell syntax
+    if: ${{ endsWith(event.file.path, '.ps1') }}
     run: |
-      echo "Checking shell syntax for ${{ event.file.path }}..."
-      bash -n "${{ event.file.path }}"
-      echo "Shell syntax valid"
+      Write-Output "Checking PowerShell syntax for ${{ event.file.path }}..."
+      $null = [System.Management.Automation.Language.Parser]::ParseFile("${{ event.file.path }}", [ref]$null, [ref]$errors)
+      if ($errors.Count -gt 0) {
+        Write-Error "Syntax errors found: $($errors | ForEach-Object { $_.Message })"
+        exit 1
+      }
+      Write-Output "PowerShell syntax valid"
 `
-	if err := os.WriteFile(filepath.Join(hooksDir, "validate-shell.yml"), []byte(workflow), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(hooksDir, "validate-pwsh.yml"), []byte(workflow), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2585,27 +2584,27 @@ steps:
 		expectDeny    bool
 	}{
 		{
-			name: "valid shell script should allow",
-			scriptContent: `#!/bin/bash
-echo "Hello World"
-if [ -f "test.txt" ]; then
-    cat test.txt
-fi
+			name: "valid PowerShell script should allow",
+			scriptContent: `# Valid PowerShell script
+Write-Output "Hello World"
+if (Test-Path "test.txt") {
+    Get-Content test.txt
+}
 `,
 			expectDeny: false,
 		},
 		{
-			name: "missing quote should deny",
-			scriptContent: `#!/bin/bash
-echo "Hello World
+			name: "missing closing brace should deny",
+			scriptContent: `# Invalid - missing closing brace
+if ($true) {
+    Write-Output "test"
 `,
 			expectDeny: true,
 		},
 		{
 			name: "syntax error should deny",
-			scriptContent: `#!/bin/bash
-if then
-fi
+			scriptContent: `# Invalid syntax
+foreach { }
 `,
 			expectDeny: true,
 		},
@@ -2613,8 +2612,8 @@ fi
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Write the test shell script
-			scriptPath := filepath.Join(tmpDir, "test-script.sh")
+			// Write the test PowerShell script
+			scriptPath := filepath.Join(tmpDir, "test-script.ps1")
 			if err := os.WriteFile(scriptPath, []byte(tt.scriptContent), 0644); err != nil {
 				t.Fatal(err)
 			}
@@ -2645,11 +2644,11 @@ fi
 
 			if tt.expectDeny {
 				if !strings.Contains(output, "deny") {
-					t.Errorf("Expected deny for invalid shell script, got: %s", output)
+					t.Errorf("Expected deny for invalid PowerShell script, got: %s", output)
 				}
 			} else {
 				if !strings.Contains(output, "allow") {
-					t.Errorf("Expected allow for valid shell script, got: %s", output)
+					t.Errorf("Expected allow for valid PowerShell script, got: %s", output)
 				}
 			}
 		})
