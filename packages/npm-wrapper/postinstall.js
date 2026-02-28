@@ -6,7 +6,7 @@ const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
 
-const REPO = 'htekdev/hookflow';
+const REPO = 'htekdev/gh-hookflow';
 const BIN_DIR = path.join(__dirname, 'bin');
 
 // Determine platform and architecture
@@ -169,8 +169,8 @@ async function install() {
   } catch (err) {
     console.error(`Installation failed: ${err.message}`);
     console.error('\nYou can also install manually:');
-    console.error('  1. go install github.com/htekdev/hookflow/cmd/hookflow@latest');
-    console.error('  2. Or download from: https://github.com/htekdev/hookflow/releases');
+    console.error('  1. go install github.com/htekdev/gh-hookflow/cmd/hookflow@latest');
+    console.error('  2. Or download from: https://github.com/htekdev/gh-hookflow/releases');
     process.exit(1);
   }
 }

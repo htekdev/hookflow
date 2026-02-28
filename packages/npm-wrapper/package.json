@@ -4,11 +4,11 @@
   "description": "Agent hook workflow engine - run GitHub Actions-like workflows triggered by Copilot hooks",
   "repository": {
     "type": "git",
-    "url": "https://github.com/htekdev/hookflow.git"
+    "url": "https://github.com/htekdev/gh-hookflow.git"
   },
-  "homepage": "https://github.com/htekdev/hookflow",
+  "homepage": "https://github.com/htekdev/gh-hookflow",
   "bugs": {
-    "url": "https://github.com/htekdev/hookflow/issues"
+    "url": "https://github.com/htekdev/gh-hookflow/issues"
   },
   "license": "MIT",
   "author": {
