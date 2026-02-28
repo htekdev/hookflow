@@ -2066,3 +2066,137 @@ func TestEventTypeToLifecycle(t *testing.T) {
 		})
 	}
 }
+
+// TestNormalizeFilePath tests file path normalization for workflow matching
+func TestNormalizeFilePath(t *testing.T) {
+	tests := []struct {
+		name     string
+		filePath string
+		dir      string
+		expected string
+	}{
+		{
+			name:     "absolute Windows path to relative",
+			filePath: "C:\\Repos\\project\\plugin.json",
+			dir:      "C:\\Repos\\project",
+			expected: "plugin.json",
+		},
+		{
+			name:     "absolute Unix path to relative",
+			filePath: "/home/user/project/src/main.go",
+			dir:      "/home/user/project",
+			expected: "src/main.go",
+		},
+		{
+			name:     "already relative path",
+			filePath: "plugin.json",
+			dir:      "/home/user/project",
+			expected: "plugin.json",
+		},
+		{
+			name:     "nested path",
+			filePath: "C:\\Repos\\project\\packages\\hooks\\scripts\\test.sh",
+			dir:      "C:\\Repos\\project",
+			expected: "packages/hooks/scripts/test.sh",
+		},
+		{
+			name:     "path with trailing slash in dir",
+			filePath: "/project/src/config.json",
+			dir:      "/project/",
+			expected: "src/config.json",
+		},
+		{
+			name:     "case insensitive match (Windows)",
+			filePath: "C:\\REPOS\\Project\\plugin.json",
+			dir:      "c:\\repos\\project",
+			expected: "plugin.json",
+		},
+		{
+			name:     "path outside of dir",
+			filePath: "/other/project/file.txt",
+			dir:      "/home/user/project",
+			expected: "/other/project/file.txt",
+		},
+		{
+			name:     "github hooks path",
+			filePath: "C:\\Repos\\project\\.github\\hooks\\workflow.yml",
+			dir:      "C:\\Repos\\project",
+			expected: ".github/hooks/workflow.yml",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeFilePath(tt.filePath, tt.dir)
+			// Normalize expected for comparison (forward slashes)
+			expected := strings.ReplaceAll(tt.expected, "\\", "/")
+			if result != expected {
+				t.Errorf("normalizeFilePath(%q, %q) = %q, want %q", tt.filePath, tt.dir, result, expected)
+			}
+		})
+	}
+}
+
+// TestWorkflowMatchesAbsolutePath tests that workflow path patterns match even when event has absolute path
+func TestWorkflowMatchesAbsolutePath(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "hookflow-abspath-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	if err := os.MkdirAll(workflowDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create workflow that watches 'plugin.json' (relative path pattern)
+	workflow := `name: Validate plugin.json
+on:
+  file:
+    paths:
+      - 'plugin.json'
+    types:
+      - edit
+blocking: true
+steps:
+  - name: Validate
+    run: echo "validated"
+`
+	if err := os.WriteFile(filepath.Join(workflowDir, "validate.yml"), []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test with absolute path (simulating what Copilot hooks send)
+	absolutePath := filepath.Join(tmpDir, "plugin.json")
+	
+	evt := &schema.Event{
+		File: &schema.FileEvent{
+			Path:   absolutePath, // Absolute path like Copilot sends
+			Action: "edit",
+		},
+		Lifecycle: "pre",
+		Cwd:       tmpDir,
+	}
+
+	// The normalizeFilePath should convert this to relative
+	evt.File.Path = normalizeFilePath(evt.File.Path, tmpDir)
+
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, _ := os.Pipe()
+	os.Stdout = stdoutW
+
+	_ = runMatchingWorkflowsWithEvent(tmpDir, evt)
+
+	_ = stdoutW.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(stdoutR)
+	output := buf.String()
+
+	// Should match and run the workflow (allow because steps succeed)
+	if !strings.Contains(output, "allow") {
+		t.Errorf("Expected workflow to match absolute path converted to relative, got: %s", output)
+	}
+}

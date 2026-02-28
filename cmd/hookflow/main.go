@@ -413,6 +413,11 @@ func runMatchingWorkflows(dir, eventStr, lifecycle string) error {
 	// Convert to Event struct
 	event := parseEventData(eventData)
 	
+	// Normalize file path to be relative to dir (for matching against workflow patterns)
+	if event.File != nil && event.File.Path != "" {
+		event.File.Path = normalizeFilePath(event.File.Path, dir)
+	}
+	
 	// Set lifecycle from CLI flag
 	event.Lifecycle = lifecycle
 	
@@ -699,4 +704,32 @@ func isHookflowSelfRepair(evt *schema.Event, dir string) bool {
 	}
 	
 	return false
+}
+
+// normalizeFilePath converts an absolute file path to a relative path from dir
+// This ensures workflow path patterns (like 'plugin.json') match correctly
+func normalizeFilePath(filePath, dir string) string {
+	// Normalize path separators for cross-platform compatibility
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
+	dir = strings.ReplaceAll(dir, "\\", "/")
+	
+	// Ensure dir ends with /
+	if !strings.HasSuffix(dir, "/") {
+		dir = dir + "/"
+	}
+	
+	// If the file path starts with the dir, make it relative
+	if strings.HasPrefix(filePath, dir) {
+		return strings.TrimPrefix(filePath, dir)
+	}
+	
+	// Also try case-insensitive match (Windows paths)
+	lowerFilePath := strings.ToLower(filePath)
+	lowerDir := strings.ToLower(dir)
+	if strings.HasPrefix(lowerFilePath, lowerDir) {
+		return filePath[len(dir):]
+	}
+	
+	// Return as-is if not under dir
+	return filePath
 }
