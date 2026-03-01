@@ -1,10 +1,10 @@
-# hookflow
+# gh-hookflow
 
 A GitHub CLI extension that runs local workflows triggered by GitHub Copilot agent hooks — like GitHub Actions, but for your AI pair programming sessions.
 
 ## Overview
 
-`hookflow` lets you run "shift-left" DevOps checks during AI agent editing sessions. Instead of waiting for CI to catch issues on pull requests, you can:
+`gh-hookflow` lets you run "shift-left" DevOps checks during AI agent editing sessions. Instead of waiting for CI to catch issues on pull requests, you can:
 
 - **Block** dangerous edits in real-time (e.g., .env file modifications)
 - **Lint** code as the agent writes it  
@@ -24,7 +24,7 @@ A GitHub CLI extension that runs local workflows triggered by GitHub Copilot age
 gh extension install htekdev/gh-hookflow
 ```
 
-This installs hookflow as `gh hookflow` and integrates directly with Copilot CLI hooks.
+This installs gh-hookflow as `gh hookflow` and integrates directly with Copilot CLI hooks.
 
 ### Alternative Installation Methods
 
@@ -68,7 +68,7 @@ Download pre-built binaries from the [Releases](https://github.com/htekdev/gh-ho
 
 ## Quick Start
 
-### 1. Initialize hookflow in your repository
+### 1. Initialize gh-hookflow in your repository
 
 ```bash
 cd your-project
@@ -127,29 +127,29 @@ gh hookflow test --event commit --path src/app.ts
 
 ```bash
 git add .github/
-git commit -m "Add hookflow workflows"
+git commit -m "Add gh-hookflow workflows"
 git push
 ```
 
-Team members with hookflow installed will automatically run your workflows during their Copilot sessions.
+Team members with gh-hookflow installed will automatically run your workflows during their Copilot sessions.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `gh hookflow init` | Initialize hookflow for a repository |
+| `gh hookflow init` | Initialize gh-hookflow for a repository |
 | `gh hookflow create <prompt>` | Create a workflow using AI |
 | `gh hookflow discover` | List workflows in the current directory |
 | `gh hookflow validate` | Validate workflow YAML files |
 | `gh hookflow test` | Test a workflow with a mock event |
 | `gh hookflow run` | Run workflows (used by hooks internally) |
-| `gh hookflow logs` | View hookflow debug logs |
+| `gh hookflow logs` | View gh-hookflow debug logs |
 | `gh hookflow triggers` | List available trigger types |
 | `gh hookflow version` | Show version information |
 
 ## How It Works
 
-hookflow integrates with [GitHub Copilot CLI hooks](https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-in-vs-code/copilot-cli-hooks):
+gh-hookflow integrates with [GitHub Copilot CLI hooks](https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-in-vs-code/copilot-cli-hooks):
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

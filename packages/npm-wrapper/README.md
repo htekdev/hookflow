@@ -1,4 +1,4 @@
-# hookflow
+# gh-hookflow
 
 A GitHub CLI extension that runs local workflows triggered by GitHub Copilot agent hooks — like GitHub Actions, but for your AI pair programming sessions.
 
@@ -27,7 +27,7 @@ curl -sSL https://raw.githubusercontent.com/htekdev/gh-hookflow/main/scripts/ins
 ## Quick Start
 
 ```bash
-# Initialize hookflow in your repo
+# Initialize gh-hookflow in your repo
 cd your-project
 hookflow init
 
@@ -41,9 +41,9 @@ hookflow test --event file --action edit --path ".env"
 hookflow discover
 ```
 
-## What is hookflow?
+## What is gh-hookflow?
 
-hookflow lets you run "shift-left" DevOps checks during AI agent editing sessions. Instead of waiting for CI to catch issues on pull requests, you can:
+gh-hookflow lets you run "shift-left" DevOps checks during AI agent editing sessions. Instead of waiting for CI to catch issues on pull requests, you can:
 
 - **Block** dangerous edits in real-time (e.g., .env file modifications)
 - **Lint** code as the agent writes it
@@ -54,7 +54,7 @@ hookflow lets you run "shift-left" DevOps checks during AI agent editing session
 
 | Command | Description |
 |---------|-------------|
-| `init` | Initialize hookflow for a repository |
+| `init` | Initialize gh-hookflow for a repository |
 | `create <prompt>` | Create a workflow using AI |
 | `discover` | List workflows in the current repository |
 | `validate` | Validate workflow YAML files |
