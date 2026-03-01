@@ -1,6 +1,6 @@
 # hookflow
 
-Local workflow engine for agentic DevOps - run GitHub Actions-like workflows triggered by Copilot agent hooks.
+A GitHub CLI extension that runs local workflows triggered by GitHub Copilot agent hooks — like GitHub Actions, but for your AI pair programming sessions.
 
 ## Installation
 
@@ -8,14 +8,20 @@ Local workflow engine for agentic DevOps - run GitHub Actions-like workflows tri
 npm install -g hookflow
 ```
 
-Or with other package managers:
+Or install as a GitHub CLI extension (recommended):
+
+```bash
+gh extension install htekdev/gh-hookflow
+```
+
+Other options:
 
 ```bash
 # Go
-go install github.com/htekdev/hookflow/cmd/hookflow@latest
+go install github.com/htekdev/gh-hookflow/cmd/hookflow@latest
 
 # Direct download
-curl -sSL https://raw.githubusercontent.com/htekdev/hookflow/main/scripts/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/htekdev/gh-hookflow/main/scripts/install.sh | sh
 ```
 
 ## Quick Start
@@ -29,7 +35,7 @@ hookflow init
 hookflow create "block edits to .env files"
 
 # Test a workflow with a mock event
-hookflow test --event commit --workflow lint.yml
+hookflow test --event file --action edit --path ".env"
 
 # List workflows
 hookflow discover
@@ -49,13 +55,12 @@ hookflow lets you run "shift-left" DevOps checks during AI agent editing session
 | Command | Description |
 |---------|-------------|
 | `init` | Initialize hookflow for a repository |
-| `create <prompt>` | Create a workflow using AI (Copilot SDK) |
-| `shift left` | Analyze CI workflows and suggest hooks |
-| `shift right` | Generate GitHub Actions from hooks |
+| `create <prompt>` | Create a workflow using AI |
 | `discover` | List workflows in the current repository |
 | `validate` | Validate workflow YAML files |
 | `test` | Test a workflow with a mock event |
 | `run` | Run workflows (used by hooks) |
+| `logs` | View debug logs |
 | `version` | Show version information |
 
 ## Workflow Syntax
@@ -71,18 +76,23 @@ on:
     paths:
       - '**/.env*'
       - '**/secrets/**'
+    types:
+      - edit
+      - create
+
+blocking: true
 
 steps:
   - name: Block sensitive file edit
     run: |
-      echo "Blocked: Cannot modify sensitive files"
+      echo "❌ Cannot modify sensitive files"
       exit 1
 ```
 
 ## Learn More
 
-- [GitHub Repository](https://github.com/htekdev/hookflow)
-- [Workflow Schema Documentation](https://github.com/htekdev/hookflow/blob/main/schema/workflow.schema.json)
+- [GitHub Repository](https://github.com/htekdev/gh-hookflow)
+- [Workflow Schema Documentation](https://github.com/htekdev/gh-hookflow/blob/main/schema/workflow.schema.json)
 
 ## License
 

@@ -1,92 +1,207 @@
 # hookflow
 
-Local workflow engine for agentic DevOps - run GitHub Actions-like workflows triggered by Copilot agent hooks.
+A GitHub CLI extension that runs local workflows triggered by GitHub Copilot agent hooks — like GitHub Actions, but for your AI pair programming sessions.
 
 ## Overview
 
 `hookflow` lets you run "shift-left" DevOps checks during AI agent editing sessions. Instead of waiting for CI to catch issues on pull requests, you can:
 
 - **Block** dangerous edits in real-time (e.g., .env file modifications)
-- **Lint** code as the agent writes it
+- **Lint** code as the agent writes it  
 - **Validate** configurations before commit
 - **Run security scans** before code leaves the local machine
 
+## Prerequisites
+
+- [GitHub CLI](https://cli.github.com/) (`gh`) installed and authenticated
+- [PowerShell Core](https://github.com/PowerShell/PowerShell) (`pwsh`) installed (workflow steps run in pwsh for cross-platform consistency)
+
 ## Installation
 
-### npm (Recommended)
+### GitHub CLI Extension (Recommended)
+
+```bash
+gh extension install htekdev/gh-hookflow
+```
+
+This installs hookflow as `gh hookflow` and integrates directly with Copilot CLI hooks.
+
+### Alternative Installation Methods
+
+<details>
+<summary>npm</summary>
 
 ```bash
 npm install -g hookflow
 ```
+</details>
 
-### Go
-
-```bash
-go install github.com/htekdev/hookflow/cmd/hookflow@latest
-```
-
-### Install Script (Unix)
+<details>
+<summary>Go</summary>
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/htekdev/hookflow/main/scripts/install.sh | sh
+go install github.com/htekdev/gh-hookflow/cmd/hookflow@latest
 ```
+</details>
 
-### Install Script (Windows)
+<details>
+<summary>Install Script (Unix)</summary>
+
+```bash
+curl -sSL https://raw.githubusercontent.com/htekdev/gh-hookflow/main/scripts/install.sh | sh
+```
+</details>
+
+<details>
+<summary>Install Script (Windows)</summary>
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/htekdev/hookflow/main/scripts/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/htekdev/gh-hookflow/main/scripts/install.ps1 | iex
 ```
+</details>
 
-### Download Binary
+<details>
+<summary>Download Binary</summary>
 
-Download pre-built binaries from the [Releases](https://github.com/htekdev/hookflow/releases) page.
+Download pre-built binaries from the [Releases](https://github.com/htekdev/gh-hookflow/releases) page.
+</details>
 
 ## Quick Start
 
+### 1. Initialize hookflow in your repository
+
 ```bash
-# Initialize hookflow for your repository
 cd your-project
-hookflow init
-
-# Test a workflow with a mock event
-hookflow test --event commit --workflow lint.yml
-
-# Discover workflows in the current directory
-hookflow discover
+gh hookflow init
 ```
+
+This creates:
+- `.github/hooks/` — Directory for your workflow files
+- `.github/hooks/hooks.json` — Copilot CLI hook configuration
+- `.github/hooks/example.yml` — Example workflow to get started
+- `.github/skills/hookflow/SKILL.md` — AI agent guidance for workflow creation
+
+### 2. Create a workflow
+
+Use AI to generate a workflow:
+
+```bash
+gh hookflow create "block edits to .env files"
+```
+
+Or manually create `.github/hooks/block-env.yml`:
+
+```yaml
+name: Block .env Files
+description: Prevent edits to environment files
+
+on:
+  file:
+    paths:
+      - '**/.env*'
+      - '**/secrets/**'
+    types:
+      - edit
+      - create
+
+blocking: true
+
+steps:
+  - name: Deny sensitive file access
+    run: |
+      echo "❌ Cannot modify sensitive file: ${{ event.file.path }}"
+      exit 1
+```
+
+### 3. Test your workflow
+
+```bash
+# Test with a mock file event
+gh hookflow test --event file --action edit --path ".env"
+
+# Test with a mock commit event  
+gh hookflow test --event commit --path src/app.ts
+```
+
+### 4. Commit and share
+
+```bash
+git add .github/
+git commit -m "Add hookflow workflows"
+git push
+```
+
+Team members with hookflow installed will automatically run your workflows during their Copilot sessions.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `init` | Initialize hookflow for a repository |
-| `discover` | List workflows in the current directory |
-| `validate` | Validate workflow YAML files |
-| `test` | Test a workflow with a mock event |
-| `run` | Run workflows (used by hooks) |
-| `triggers` | List available trigger types |
-| `version` | Show version information |
+| `gh hookflow init` | Initialize hookflow for a repository |
+| `gh hookflow create <prompt>` | Create a workflow using AI |
+| `gh hookflow discover` | List workflows in the current directory |
+| `gh hookflow validate` | Validate workflow YAML files |
+| `gh hookflow test` | Test a workflow with a mock event |
+| `gh hookflow run` | Run workflows (used by hooks internally) |
+| `gh hookflow logs` | View hookflow debug logs |
+| `gh hookflow triggers` | List available trigger types |
+| `gh hookflow version` | Show version information |
+
+## How It Works
+
+hookflow integrates with [GitHub Copilot CLI hooks](https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-in-vs-code/copilot-cli-hooks):
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Copilot Agent Session                                      │
+│                                                             │
+│  User: "Edit the .env file"                                 │
+│                    │                                        │
+│                    ▼                                        │
+│  ┌──────────────────────────────────────────┐               │
+│  │ preToolUse Hook                          │               │
+│  │  └─> gh hookflow run --event-type pre    │               │
+│  │       └─> Matches .github/hooks/*.yml    │               │
+│  │       └─> Runs blocking workflow         │               │
+│  │       └─> Returns: deny/allow            │               │
+│  └──────────────────────────────────────────┘               │
+│                    │                                        │
+│         ┌─────────┴─────────┐                               │
+│         │                   │                               │
+│      DENIED              ALLOWED                            │
+│         │                   │                               │
+│    Agent stops         Tool executes                        │
+│                             │                               │
+│                             ▼                               │
+│  ┌──────────────────────────────────────────┐               │
+│  │ postToolUse Hook                         │               │
+│  │  └─> gh hookflow run --event-type post   │               │
+│  │       └─> Runs validation/linting        │               │
+│  └──────────────────────────────────────────┘               │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## Usage
 
 ```bash
-# Initialize a repository (creates .github/hooks/ and .copilot/hooks.json)
-hookflow init
+# Initialize a repository (creates .github/hooks/ and hooks.json)
+gh hookflow init
 
 # Discover workflows in the current directory
-hookflow discover
+gh hookflow discover
 
 # Validate workflow files
-hookflow validate
+gh hookflow validate
 
 # Test a workflow with a mock commit event
-hookflow test --event commit --path src/app.ts
+gh hookflow test --event commit --path src/app.ts
 
 # Test a workflow with a mock file event
-hookflow test --event file --action edit --path src/app.ts
+gh hookflow test --event file --action edit --path src/app.ts
 
-# Run workflows for an event (used by hooks)
-hookflow run --raw --dir .
+# View logs for debugging
+gh hookflow logs
+gh hookflow logs -f  # Follow mode (like tail -f)
 ```
 
 ## Workflow Syntax
@@ -98,30 +213,55 @@ name: Block Sensitive Files
 description: Prevent edits to sensitive files
 
 on:
-  tool:
-    name: edit
-    args:
-      path: '**/*.env*'
+  file:
+    lifecycle: pre     # Run BEFORE the action (can block)
+    paths:
+      - '**/*.env*'
+      - '**/secrets/**'
+    paths-ignore:
+      - '**/*.md'
+    types:
+      - edit
+      - create
 
-blocking: true
+blocking: true         # Exit 1 = deny the action
 
 steps:
   - name: Deny edit
     run: |
-      echo "Cannot edit sensitive files"
+      echo "❌ Cannot edit sensitive files"
       exit 1
 ```
 
-## Event Types
+### Lifecycle: Pre vs Post
 
-| Trigger | Description |
-|---------|-------------|
-| `hooks` | Match by hook type (preToolUse, postToolUse) |
-| `tool` | Match specific tools with argument patterns |
-| `tools` | Match multiple tool configurations |
-| `file` | Match file creation/edit events |
-| `commit` | Match git commit events |
-| `push` | Match git push events |
+- **`lifecycle: pre`** (default) — Runs BEFORE the tool executes. Can block/deny the operation.
+- **`lifecycle: post`** — Runs AFTER the tool executes. For validation, linting, notifications.
+
+```yaml
+# Post-edit linting example
+on:
+  file:
+    lifecycle: post
+    paths: ['**/*.ts']
+    types: [edit]
+
+blocking: false  # Non-blocking - just report
+
+steps:
+  - name: Lint TypeScript
+    run: npx eslint "${{ event.file.path }}" --fix
+```
+
+## Trigger Types
+
+| Trigger | Description | Example |
+|---------|-------------|---------|
+| `file` | File create/edit/delete events | Block `.env` edits |
+| `tool` | Specific tool calls with arg patterns | Block `rm -rf` commands |
+| `commit` | Git commit events | Require tests with source changes |
+| `push` | Git push events | Require PR for main branch |
+| `hooks` | Match by hook type | Run on all preToolUse |
 
 ## Expression Engine
 
@@ -134,18 +274,102 @@ steps:
     run: echo "TypeScript file: ${{ event.file.path }}"
 ```
 
+### Available Context
+
+| Expression | Description |
+|------------|-------------|
+| `event.file.path` | Path of file being edited |
+| `event.file.action` | Action: edit, create, delete |
+| `event.file.content` | File content (for create) |
+| `event.tool.name` | Tool name being called |
+| `event.tool.args.*` | Tool argument values |
+| `event.commit.message` | Commit message |
+| `event.commit.sha` | Commit SHA |
+| `event.lifecycle` | Hook lifecycle: pre or post |
+| `env.MY_VAR` | Environment variable |
+
 ### Built-in Functions
 
-- `contains(search, item)` - Check if string/array contains item
-- `startsWith(str, value)` - String starts with value
-- `endsWith(str, value)` - String ends with value
-- `format(str, ...args)` - String formatting
-- `join(array, sep)` - Join array to string
-- `toJSON(value)` - Convert to JSON string
-- `fromJSON(str)` - Parse JSON string
-- `always()` - Always true
-- `success()` - Previous steps succeeded
-- `failure()` - Previous step failed
+| Function | Description |
+|----------|-------------|
+| `contains(search, item)` | Check if string/array contains item |
+| `startsWith(str, value)` | String starts with value |
+| `endsWith(str, value)` | String ends with value |
+| `format(str, ...args)` | String formatting |
+| `join(array, sep)` | Join array to string |
+| `toJSON(value)` | Convert to JSON string |
+| `fromJSON(str)` | Parse JSON string |
+| `always()` | Always true |
+| `success()` | Previous steps succeeded |
+| `failure()` | Previous step failed |
+
+## Common Patterns
+
+### Block Sensitive Files
+
+```yaml
+name: Block Sensitive Files
+on:
+  file:
+    paths: ['**/.env*', '**/secrets/**', '**/*.pem', '**/*.key']
+    types: [edit, create]
+blocking: true
+steps:
+  - name: Deny
+    run: |
+      echo "❌ Cannot modify: ${{ event.file.path }}"
+      exit 1
+```
+
+### Require Tests with Source Changes
+
+```yaml
+name: Require Tests
+on:
+  commit:
+    paths: ['src/**']
+    paths-ignore: ['src/**/*.test.*']
+blocking: true
+steps:
+  - name: Check for test files
+    run: |
+      if ! echo "${{ event.commit.files }}" | grep -q '\.test\.'; then
+        echo "❌ Source changes require tests"
+        exit 1
+      fi
+```
+
+### Post-Edit Linting
+
+```yaml
+name: Lint on Save
+on:
+  file:
+    lifecycle: post
+    paths: ['**/*.ts', '**/*.tsx']
+    types: [edit]
+blocking: false
+steps:
+  - name: ESLint
+    run: npx eslint "${{ event.file.path }}" --fix
+```
+
+## Debugging
+
+Enable debug logging:
+
+```bash
+# Set environment variable
+export HOOKFLOW_DEBUG=1
+
+# View logs
+gh hookflow logs
+gh hookflow logs -n 100    # Last 100 lines
+gh hookflow logs -f        # Follow mode
+gh hookflow logs --path    # Print log file path
+```
+
+Logs are stored in `~/.hookflow/logs/` with 7-day retention.
 
 ## Development
 
@@ -163,7 +387,8 @@ go tool cover -html=coverage.out
 
 ## Related Projects
 
-- [hookflow](https://github.com/htekdev/hookflow) - Copilot plugin that uses this CLI
+- [GitHub Copilot CLI](https://github.com/github/gh-copilot) — The AI coding assistant this extends
+- [Copilot Hooks Documentation](https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-in-vs-code/copilot-cli-hooks) — Official hooks reference
 
 ## License
 
