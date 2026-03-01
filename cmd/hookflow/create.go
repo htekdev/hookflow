@@ -23,7 +23,7 @@ Examples:
   hookflow create "run eslint on typescript file edits"
   hookflow create "validate JSON files before commit"
 
-The generated workflow will be saved to .github/hooks/ and validated
+The generated workflow will be saved to .github/hookflows/ and validated
 before saving.`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -91,8 +91,8 @@ func runCreate(dir, prompt, outputName string, dryRun bool) error {
 		outputName = generateFileName(result.Name)
 	}
 
-	// Ensure .github/hooks directory exists
-	workflowDir := filepath.Join(dir, ".github", "hooks")
+	// Ensure .github/hookflows directory exists
+	workflowDir := filepath.Join(dir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		return fmt.Errorf("failed to create workflows directory: %w", err)
 	}

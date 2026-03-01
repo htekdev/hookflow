@@ -76,9 +76,9 @@ gh hookflow init
 ```
 
 This creates:
-- `.github/hooks/` — Directory for your workflow files
-- `.github/hooks/hooks.json` — Copilot CLI hook configuration
-- `.github/hooks/example.yml` — Example workflow to get started
+- `.github/hookflows/` — Directory for your workflow files
+- `.github/hookflows/hooks.json` — Copilot CLI hook configuration
+- `.github/hookflows/example.yml` — Example workflow to get started
 - `.github/skills/hookflow/SKILL.md` — AI agent guidance for workflow creation
 
 ### 2. Create a workflow
@@ -89,7 +89,7 @@ Use AI to generate a workflow:
 gh hookflow create "block edits to .env files"
 ```
 
-Or manually create `.github/hooks/block-env.yml`:
+Or manually create `.github/hookflows/block-env.yml`:
 
 ```yaml
 name: Block .env Files
@@ -161,7 +161,7 @@ gh-hookflow integrates with [GitHub Copilot CLI hooks](https://docs.github.com/e
 │  ┌──────────────────────────────────────────┐               │
 │  │ preToolUse Hook                          │               │
 │  │  └─> gh hookflow run --event-type pre    │               │
-│  │       └─> Matches .github/hooks/*.yml    │               │
+│  │       └─> Matches .github/hookflows/*.yml │               │
 │  │       └─> Runs blocking workflow         │               │
 │  │       └─> Returns: deny/allow            │               │
 │  └──────────────────────────────────────────┘               │
@@ -184,7 +184,7 @@ gh-hookflow integrates with [GitHub Copilot CLI hooks](https://docs.github.com/e
 ## Usage
 
 ```bash
-# Initialize a repository (creates .github/hooks/ and hooks.json)
+# Initialize a repository (creates .github/hookflows/ and hooks.json)
 gh hookflow init
 
 # Discover workflows in the current directory
@@ -206,7 +206,7 @@ gh hookflow logs -f  # Follow mode (like tail -f)
 
 ## Workflow Syntax
 
-Workflows are defined in `.github/hooks/*.yml`:
+Workflows are defined in `.github/hookflows/*.yml`:
 
 ```yaml
 name: Block Sensitive Files

@@ -127,8 +127,8 @@ func ValidateWorkflowsInDir(dir string) *ValidationResult {
 		Errors: []ValidationError{},
 	}
 
-	// Find all YAML files in .github/hooks
-	workflowDir := filepath.Join(dir, ".github", "hooks")
+	// Find all YAML files in .github/hookflows
+	workflowDir := filepath.Join(dir, ".github", "hookflows")
 
 	// Check if directory exists
 	if _, err := os.Stat(workflowDir); err != nil {

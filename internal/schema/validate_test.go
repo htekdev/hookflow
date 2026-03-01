@@ -71,8 +71,8 @@ func TestValidateWorkflowsInDir(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	// Create .github/hooks directory
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	// Create .github/hookflows directory
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatalf("Failed to create workflow directory: %v", err)
 	}
@@ -105,8 +105,8 @@ func TestValidateWorkflowsInDir_WithErrors(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	// Create .github/hooks directory
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	// Create .github/hookflows directory
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatalf("Failed to create workflow directory: %v", err)
 	}

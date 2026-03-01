@@ -127,7 +127,7 @@ func TestValidateCommand(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestValidateCommandDir(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -366,7 +366,7 @@ func TestFindWorkflowFileYAML(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -400,7 +400,7 @@ func TestRunWorkflowFound(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -447,7 +447,7 @@ func TestRunMatchingWorkflowsWithMatchingWorkflow(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -498,7 +498,7 @@ func TestRunMatchingWorkflowsNoMatch(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -550,7 +550,7 @@ func TestRunMatchingWorkflowsEmptyDir(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -720,7 +720,7 @@ func TestIsHookflowSelfRepair(t *testing.T) {
 			name: "edit to hookflow workflow yml",
 			event: &schema.Event{
 				File: &schema.FileEvent{
-					Path:   ".github/hooks/my-workflow.yml",
+					Path:   ".github/hookflows/my-workflow.yml",
 					Action: "edit",
 				},
 			},
@@ -730,7 +730,7 @@ func TestIsHookflowSelfRepair(t *testing.T) {
 			name: "create hookflow workflow yaml",
 			event: &schema.Event{
 				File: &schema.FileEvent{
-					Path:   ".github/hooks/new-workflow.yaml",
+					Path:   ".github/hookflows/new-workflow.yaml",
 					Action: "create",
 				},
 			},
@@ -750,7 +750,7 @@ func TestIsHookflowSelfRepair(t *testing.T) {
 			name: "edit to hookflow but not yml",
 			event: &schema.Event{
 				File: &schema.FileEvent{
-					Path:   ".github/hooks/README.md",
+					Path:   ".github/hookflows/README.md",
 					Action: "edit",
 				},
 			},
@@ -760,7 +760,7 @@ func TestIsHookflowSelfRepair(t *testing.T) {
 			name: "delete hookflow workflow - not allowed for self-repair",
 			event: &schema.Event{
 				File: &schema.FileEvent{
-					Path:   ".github/hooks/my-workflow.yml",
+					Path:   ".github/hookflows/my-workflow.yml",
 					Action: "delete",
 				},
 			},
@@ -779,7 +779,7 @@ func TestIsHookflowSelfRepair(t *testing.T) {
 			name: "nested path in hooks",
 			event: &schema.Event{
 				File: &schema.FileEvent{
-					Path:   ".github/hooks/subdir/workflow.yml",
+					Path:   ".github/hookflows/subdir/workflow.yml",
 					Action: "edit",
 				},
 			},
@@ -789,7 +789,7 @@ func TestIsHookflowSelfRepair(t *testing.T) {
 			name: "windows-style path",
 			event: &schema.Event{
 				File: &schema.FileEvent{
-					Path:   ".github/hooks/workflow.yml", // Use forward slashes for cross-platform
+					Path:   ".github/hookflows/workflow.yml", // Use forward slashes for cross-platform
 					Action: "edit",
 				},
 			},
@@ -815,7 +815,7 @@ func TestInvalidWorkflowDeniesNonHookflowEdits(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -863,7 +863,7 @@ steps:
 	}
 }
 
-// TestInvalidWorkflowAllowsSelfRepair tests that invalid workflows allow edits to .github/hooks/
+// TestInvalidWorkflowAllowsSelfRepair tests that invalid workflows allow edits to .github/hookflows/
 func TestInvalidWorkflowAllowsSelfRepair(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "hookflow-self-repair-*")
 	if err != nil {
@@ -871,7 +871,7 @@ func TestInvalidWorkflowAllowsSelfRepair(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -891,7 +891,7 @@ steps:
 	// Use runMatchingWorkflowsWithEvent directly - editing the hookflow workflow itself
 	evt := &schema.Event{
 		File: &schema.FileEvent{
-			Path:   ".github/hooks/invalid.yml",
+			Path:   ".github/hookflows/invalid.yml",
 			Action: "edit",
 		},
 		Cwd: tmpDir,
@@ -910,7 +910,7 @@ steps:
 	_, _ = buf.ReadFrom(stdoutR)
 	output := buf.String()
 
-	// Should allow because it's a self-repair edit to .github/hooks/
+	// Should allow because it's a self-repair edit to .github/hookflows/
 	if !strings.Contains(output, "allow") {
 		t.Errorf("Expected allow for self-repair edit, got: %s", output)
 	}
@@ -927,7 +927,7 @@ func TestFileTriggerWithTypesMatches(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -990,7 +990,7 @@ func TestFileTriggerWithMultipleTypes(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1049,7 +1049,7 @@ func TestFileTriggerNoMatchWrongType(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1107,7 +1107,7 @@ func TestConditionalStepWithToolArgsNewStr(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1212,7 +1212,7 @@ func TestConditionalStepWithFileContent(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1319,7 +1319,7 @@ func TestConditionalStepFileEventWithoutToolContext(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1394,7 +1394,7 @@ func TestLifecyclePreMatchesPre(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1453,7 +1453,7 @@ func TestLifecyclePostMatchesPost(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1512,7 +1512,7 @@ func TestLifecyclePreDoesNotMatchPost(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1571,7 +1571,7 @@ func TestLifecyclePostDoesNotMatchPre(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1630,7 +1630,7 @@ func TestLifecycleDefaultIsPre(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1745,7 +1745,7 @@ func TestLifecycleCommitTrigger(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1850,7 +1850,7 @@ func TestLifecyclePushTrigger(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -1934,7 +1934,7 @@ func TestLifecycleMixedWorkflows(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -2125,9 +2125,9 @@ func TestNormalizeFilePath(t *testing.T) {
 		},
 		{
 			name:     "github hooks path",
-			filePath: "C:\\Repos\\project\\.github\\hooks\\workflow.yml",
+			filePath: "C:\\Repos\\project\\.github\\hookflows\\workflow.yml",
 			dir:      "C:\\Repos\\project",
-			expected: ".github/hooks/workflow.yml",
+			expected: ".github/hookflows/workflow.yml",
 		},
 	}
 
@@ -2154,7 +2154,7 @@ func TestWorkflowMatchesAbsolutePath(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -2361,7 +2361,7 @@ steps:
 			}
 			defer func() { _ = os.RemoveAll(tmpDir) }()
 
-			workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+			workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 			if err := os.MkdirAll(workflowDir, 0755); err != nil {
 				t.Fatal(err)
 			}
@@ -2424,7 +2424,7 @@ func TestJSONValidationWorkflow(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create hooks directory
-	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	hooksDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(hooksDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -2547,7 +2547,7 @@ func TestWorkflowStepExitCodeDenies(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create hooks directory
-	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	hooksDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(hooksDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -2647,7 +2647,7 @@ func TestWorkflowStepConditions(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create hooks directory
-	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	hooksDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(hooksDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -2985,7 +2985,7 @@ func TestEndToEndAbsolutePathMatching(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create hooks directory
-	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	hooksDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(hooksDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -3099,7 +3099,7 @@ func TestExpressionContextWithNormalizedPath(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	hooksDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(hooksDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -3313,7 +3313,7 @@ func TestGlobPatternMatching(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+			hooksDir := filepath.Join(tmpDir, ".github", "hookflows")
 			_ = os.RemoveAll(hooksDir)
 			_ = os.MkdirAll(hooksDir, 0755)
 
@@ -3398,7 +3398,7 @@ func TestMultipleWorkflowsMatching(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	hooksDir := filepath.Join(tmpDir, ".github", "hookflows")
 	_ = os.MkdirAll(hooksDir, 0755)
 
 	// Workflow 1: Blocks .env files
@@ -3554,7 +3554,7 @@ func TestToolArgsInExpressions(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	hooksDir := filepath.Join(tmpDir, ".github", "hookflows")
 	_ = os.MkdirAll(hooksDir, 0755)
 
 	// Workflow that checks for sensitive patterns in new_str
@@ -3684,7 +3684,7 @@ func TestFileContentInExpressions(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	hooksDir := filepath.Join(tmpDir, ".github", "hooks")
+	hooksDir := filepath.Join(tmpDir, ".github", "hookflows")
 	_ = os.MkdirAll(hooksDir, 0755)
 
 	// Workflow that checks file content on create

@@ -15,12 +15,12 @@ var initCmd = &cobra.Command{
 for hookflow in the current repository.
 
 This command creates:
-- .github/hooks/ directory for your workflow files
-- .github/hooks/hooks.json to integrate with Copilot CLI hooks
+- .github/hookflows/ directory for your workflow files
+- .github/hookflows/hooks.json to integrate with Copilot CLI hooks
 - .github/skills/hookflow/SKILL.md for AI agent guidance
 
 After running init, you can create workflows using 'hookflow create'
-or by manually creating YAML files in .github/hooks/`,
+or by manually creating YAML files in .github/hookflows/`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dir, _ := cmd.Flags().GetString("dir")
 		force, _ := cmd.Flags().GetBool("force")
@@ -46,14 +46,14 @@ func init() {
 func runInit(dir string, force bool) error {
 	fmt.Printf("Initializing hookflow in %s\n", dir)
 
-	// Create .github/hooks directory
-	hooksDir := filepath.Join(dir, ".github", "hooks")
+	// Create .github/hookflows directory
+	hooksDir := filepath.Join(dir, ".github", "hookflows")
 	if err := os.MkdirAll(hooksDir, 0755); err != nil {
-		return fmt.Errorf("failed to create hooks directory: %w", err)
+		return fmt.Errorf("failed to create hookflows directory: %w", err)
 	}
 	fmt.Printf("✓ Created %s\n", hooksDir)
 
-	// Create hooks.json in .github/hooks/ (the standard location)
+	// Create hooks.json in .github/hookflows/ (the standard location)
 	hooksFile := filepath.Join(hooksDir, "hooks.json")
 	if _, err := os.Stat(hooksFile); err == nil && !force {
 		fmt.Printf("⚠ %s already exists (use --force to overwrite)\n", hooksFile)
@@ -97,7 +97,7 @@ func runInit(dir string, force bool) error {
 	fmt.Println("\n✓ hookflow initialized successfully!")
 	fmt.Println("\nNext steps:")
 	fmt.Println("  1. Create a workflow: hookflow create \"block edits to .env files\"")
-	fmt.Println("  2. Or edit the example workflow in .github/hooks/example.yml")
+	fmt.Println("  2. Or edit the example workflow in .github/hookflows/example.yml")
 	fmt.Println("  3. Commit the .github/ directory to enable for your team")
 	fmt.Println("\nNote: Team members need hookflow installed. They can run:")
 	fmt.Println("  gh extension install htekdev/gh-hookflow")
@@ -106,7 +106,7 @@ func runInit(dir string, force bool) error {
 }
 
 // generateHooksJSON creates the hooks.json that integrates with Copilot CLI
-// This goes in .github/hooks/hooks.json per Copilot CLI documentation
+// This goes in .github/hookflows/hooks.json per Copilot CLI documentation
 func generateHooksJSON() string {
 	// Direct call to gh hookflow - requires gh extension to be installed
 	return `{
@@ -167,7 +167,7 @@ steps:
 func generateSkillMD() string {
 	return `---
 name: hookflow
-description: Create and manage hookflow workflows for agent governance. Use this skill when creating, editing, or troubleshooting workflow files in .github/hooks/. Trigger phrases include "create workflow", "block file edits", "add validation", "hookflow", "agent gate".
+description: Create and manage hookflow workflows for agent governance. Use this skill when creating, editing, or troubleshooting workflow files in .github/hookflows/. Trigger phrases include "create workflow", "block file edits", "add validation", "hookflow", "agent gate".
 ---
 
 # Hookflow Workflow Creation
@@ -176,7 +176,7 @@ This skill helps you create hookflow workflow files that enforce governance duri
 
 ## When to Use This Skill
 
-- Creating new workflow files in ` + "`" + `.github/hooks/` + "`" + `
+- Creating new workflow files in ` + "`" + `.github/hookflows/` + "`" + `
 - Editing existing hookflow workflows
 - Troubleshooting workflow triggers or validation
 - Understanding the hookflow schema
@@ -439,7 +439,7 @@ steps:
 Run ` + "`hookflow validate`" + ` to check workflow syntax:
 
 ` + "```bash" + `
-hookflow validate --file .github/hooks/my-workflow.yml
+hookflow validate --file .github/hookflows/my-workflow.yml
 ` + "```" + `
 
 ### Testing Workflows

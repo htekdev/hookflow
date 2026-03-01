@@ -53,7 +53,7 @@ Examples of shifts:
 var shiftRightCmd = &cobra.Command{
 	Use:   "right",
 	Short: "Generate GitHub Actions from agent workflows",
-	Long: `Analyzes your .github/hooks/ and generates GitHub Actions that
+	Long: `Analyzes your .github/hookflows/ and generates GitHub Actions that
 provide the same protections at PR time.
 
 This creates "defense in depth" - protections exist in both:
@@ -188,9 +188,9 @@ func runShiftRight(dir string, dryRun bool) error {
 	fmt.Println()
 
 	// Find agent workflow files
-	agentDir := filepath.Join(dir, ".github", "hooks")
+	agentDir := filepath.Join(dir, ".github", "hookflows")
 	if _, err := os.Stat(agentDir); os.IsNotExist(err) {
-		return fmt.Errorf("no .github/hooks/ directory found")
+		return fmt.Errorf("no .github/hookflows/ directory found")
 	}
 
 	// Read all workflow files
@@ -217,7 +217,7 @@ func runShiftRight(dir string, dryRun bool) error {
 	}
 
 	if len(workflows) == 0 {
-		fmt.Println("No hooks found in .github/hooks/")
+		fmt.Println("No hookflows found in .github/hookflows/")
 		return nil
 	}
 

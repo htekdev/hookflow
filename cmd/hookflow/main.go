@@ -42,7 +42,7 @@ var rootCmd = &cobra.Command{
 	Long: `hookflow is a CLI tool that executes local workflows triggered by
 Copilot agent hooks, file changes, commits, and pushes.
 
-Workflows are defined in .github/hooks/*.yml using a GitHub Actions-like syntax.`,
+Workflows are defined in .github/hookflows/*.yml using a GitHub Actions-like syntax.`,
 }
 
 var versionCmd = &cobra.Command{
@@ -157,7 +157,7 @@ func followLog(path string) error {
 var discoverCmd = &cobra.Command{
 	Use:   "discover",
 	Short: "Discover workflow files in the current directory",
-	Long:  `Searches for .github/hooks/*.yml files and lists them.`,
+	Long:  `Searches for .github/hookflows/*.yml files and lists them.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dir, _ := cmd.Flags().GetString("dir")
 		if dir == "" {
@@ -423,7 +423,7 @@ func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
 	}
 
 	// Discover workflows
-	workflowDir := filepath.Join(dir, ".github", "hooks")
+	workflowDir := filepath.Join(dir, ".github", "hookflows")
 	if _, err := os.Stat(workflowDir); os.IsNotExist(err) {
 		// No workflows directory, allow by default
 		log.Debug("no workflow directory at %s, allowing", workflowDir)
@@ -488,7 +488,7 @@ func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
 
 	// If any workflows are invalid, check if agent is trying to fix them
 	if len(validationErrors) > 0 {
-		// Allow edits/creates to .github/hooks/ so agent can self-repair
+		// Allow edits/creates to .github/hookflows/ so agent can self-repair
 		if isHookflowSelfRepair(evt, dir) {
 			log.Info("allowing self-repair for invalid workflows")
 			result := schema.NewAllowResult()
@@ -499,7 +499,7 @@ func runMatchingWorkflowsWithEvent(dir string, evt *schema.Event) error {
 		// Otherwise deny - workflows must be fixed first
 		result := &schema.WorkflowResult{
 			PermissionDecision:       "deny",
-			PermissionDecisionReason: fmt.Sprintf("Invalid workflow(s): %s. Fix workflows in .github/hooks/ first.", strings.Join(validationErrors, "; ")),
+			PermissionDecisionReason: fmt.Sprintf("Invalid workflow(s): %s. Fix workflows in .github/hookflows/ first.", strings.Join(validationErrors, "; ")),
 		}
 		return outputWorkflowResult(result)
 	}
@@ -576,7 +576,7 @@ func runMatchingWorkflows(dir, eventStr, lifecycle string) error {
 	event.Lifecycle = lifecycle
 	
 	// Discover workflows
-	workflowDir := filepath.Join(dir, ".github", "hooks")
+	workflowDir := filepath.Join(dir, ".github", "hookflows")
 	if _, err := os.Stat(workflowDir); os.IsNotExist(err) {
 		// No workflows directory, allow by default
 		result := schema.NewAllowResult()
@@ -767,7 +767,7 @@ func discoverWorkflows(dir string) ([]discover.WorkflowFile, error) {
 // findWorkflowFile finds a workflow file by name
 func findWorkflowFile(dir, workflowName string) (string, bool) {
 	for _, ext := range []string{".yml", ".yaml"} {
-		path := fmt.Sprintf("%s/.github/hooks/%s%s", dir, workflowName, ext)
+		path := fmt.Sprintf("%s/.github/hookflows/%s%s", dir, workflowName, ext)
 		if _, err := os.Stat(path); err == nil {
 			return path, true
 		}
@@ -828,7 +828,7 @@ func extractPushRef(command string, currentBranch string) string {
 	return "refs/heads/" + currentBranch
 }
 
-// isHookflowSelfRepair checks if the current event is an edit/create to .github/hooks/
+// isHookflowSelfRepair checks if the current event is an edit/create to .github/hookflows/
 // This allows the agent to fix invalid workflows without being blocked
 func isHookflowSelfRepair(evt *schema.Event, dir string) bool {
 	// Must be a file event (edit or create)
@@ -842,14 +842,14 @@ func isHookflowSelfRepair(evt *schema.Event, dir string) bool {
 		return false
 	}
 	
-	// Check if the path is in .github/hooks/
+	// Check if the path is in .github/hookflows/
 	filePath := evt.File.Path
 	
 	// Normalize path separators (handle both Windows and Unix paths on any platform)
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
 	
-	// Check for .github/hooks/ in the path
-	if strings.Contains(filePath, ".github/hooks/") {
+	// Check for .github/hookflows/ in the path
+	if strings.Contains(filePath, ".github/hookflows/") {
 		// Must be a YAML file
 		ext := strings.ToLower(filepath.Ext(filePath))
 		if ext == ".yml" || ext == ".yaml" {

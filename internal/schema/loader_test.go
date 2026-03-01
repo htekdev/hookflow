@@ -563,7 +563,7 @@ func TestValidateWorkflowsInDir_MixedValidInvalid(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatalf("Failed to create workflow dir: %v", err)
 	}
@@ -596,7 +596,7 @@ func TestValidateWorkflowsInDir_NestedWorkflows(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	nestedDir := filepath.Join(workflowDir, "nested")
 	if err := os.MkdirAll(nestedDir, 0755); err != nil {
 		t.Fatalf("Failed to create nested dir: %v", err)
@@ -620,7 +620,7 @@ func TestValidateWorkflowsInDir_IgnoresNonYAML(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatalf("Failed to create workflow dir: %v", err)
 	}
@@ -646,7 +646,7 @@ func TestValidateWorkflowsInDir_YAMLExtensions(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatalf("Failed to create workflow dir: %v", err)
 	}

@@ -9,7 +9,7 @@ import (
 func TestDiscover(t *testing.T) {
 	// Create temp directory structure
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestDiscoverNoWorkflowDir(t *testing.T) {
 
 func TestExists(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -118,23 +118,23 @@ func TestExists(t *testing.T) {
 
 func TestWorkflowFile(t *testing.T) {
 	wf := WorkflowFile{
-		Path:    "/repo/.github/hooks/lint.yml",
+		Path:    "/repo/.github/hookflows/lint.yml",
 		Name:    "lint",
-		RelPath: ".github/hooks/lint.yml",
+		RelPath: ".github/hookflows/lint.yml",
 	}
 
 	if wf.Name != "lint" {
 		t.Errorf("WorkflowFile.Name = %q, want %q", wf.Name, "lint")
 	}
 
-	if wf.RelPath != ".github/hooks/lint.yml" {
-		t.Errorf("WorkflowFile.RelPath = %q, want %q", wf.RelPath, ".github/hooks/lint.yml")
+	if wf.RelPath != ".github/hookflows/lint.yml" {
+		t.Errorf("WorkflowFile.RelPath = %q, want %q", wf.RelPath, ".github/hookflows/lint.yml")
 	}
 }
 
 func TestDiscoverByGlob(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestDiscoverByGlob(t *testing.T) {
 
 func TestDiscoverByGlobSkipsDirectories(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	subDir := filepath.Join(workflowDir, "subdir.yml") // directory named like a file
 	if err := os.MkdirAll(subDir, 0755); err != nil {
 		t.Fatal(err)
@@ -215,7 +215,7 @@ func TestDiscoverByGlobSkipsDirectories(t *testing.T) {
 
 func TestDiscoverByGlobNonStandardExtensions(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestDiscoverByGlobInvalidPattern(t *testing.T) {
 
 func TestDiscoverNestedDirectories(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 
 	// Create nested directories
 	subdirs := []string{
@@ -292,7 +292,7 @@ func TestDiscoverNestedDirectories(t *testing.T) {
 	for _, w := range workflows {
 		if w.Name == "path-workflow" {
 			foundNested = true
-			expectedRel := filepath.Join(".github", "hooks", "deep", "nested", "path", "path-workflow.yml")
+			expectedRel := filepath.Join(".github", "hookflows", "deep", "nested", "path", "path-workflow.yml")
 			if w.RelPath != expectedRel {
 				t.Errorf("Nested workflow RelPath = %q, want %q", w.RelPath, expectedRel)
 			}
@@ -305,7 +305,7 @@ func TestDiscoverNestedDirectories(t *testing.T) {
 
 func TestDiscoverMixedExtensions(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -355,7 +355,7 @@ func TestDiscoverMixedExtensions(t *testing.T) {
 
 func TestDiscoverNonStandardExtensions(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +399,7 @@ func TestDiscoverNonStandardExtensions(t *testing.T) {
 
 func TestExistsYamlExtension(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -420,7 +420,7 @@ func TestExistsYamlExtension(t *testing.T) {
 
 func TestExistsPrefersYml(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -445,7 +445,7 @@ func TestExistsPrefersYml(t *testing.T) {
 
 func TestDiscoverWalkError(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -478,7 +478,7 @@ func TestDiscoverWalkError(t *testing.T) {
 
 func TestDiscoverByGlobStatError(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -501,7 +501,7 @@ func TestDiscoverByGlobStatError(t *testing.T) {
 
 func TestDiscoverEmptyWorkflowDir(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -519,7 +519,7 @@ func TestDiscoverEmptyWorkflowDir(t *testing.T) {
 
 func TestDiscoverByGlobEmptyDir(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +536,7 @@ func TestDiscoverByGlobEmptyDir(t *testing.T) {
 
 func TestDiscoverRelativePathHandling(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -567,7 +567,7 @@ func TestDiscoverRelativePathHandling(t *testing.T) {
 		t.Errorf("WorkflowFile.RelPath should be relative, got: %q", w.RelPath)
 	}
 
-	expectedRelPath := filepath.Join(".github", "hooks", "test.yml")
+	expectedRelPath := filepath.Join(".github", "hookflows", "test.yml")
 	if w.RelPath != expectedRelPath {
 		t.Errorf("WorkflowFile.RelPath = %q, want %q", w.RelPath, expectedRelPath)
 	}
@@ -575,7 +575,7 @@ func TestDiscoverRelativePathHandling(t *testing.T) {
 
 func TestDiscoverByGlobRelativePathHandling(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -606,7 +606,7 @@ func TestDiscoverByGlobRelativePathHandling(t *testing.T) {
 		t.Errorf("WorkflowFile.RelPath should be relative, got: %q", w.RelPath)
 	}
 
-	expectedRelPath := filepath.Join(".github", "hooks", "test.yml")
+	expectedRelPath := filepath.Join(".github", "hookflows", "test.yml")
 	if w.RelPath != expectedRelPath {
 		t.Errorf("WorkflowFile.RelPath = %q, want %q", w.RelPath, expectedRelPath)
 	}
@@ -614,7 +614,7 @@ func TestDiscoverByGlobRelativePathHandling(t *testing.T) {
 
 func TestDiscoverOnlyDirectories(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 
 	// Create only directories (no files)
 	dirs := []string{"subdir1", "subdir2", "deep/nested"}
@@ -636,7 +636,7 @@ func TestDiscoverOnlyDirectories(t *testing.T) {
 
 func TestWorkflowFileNameExtraction(t *testing.T) {
 	tmpDir := t.TempDir()
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}

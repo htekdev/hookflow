@@ -8,7 +8,7 @@ import (
 
 const (
 	// WorkflowDir is the directory where agent workflows are stored
-	WorkflowDir = ".github/hooks"
+	WorkflowDir = ".github/hookflows"
 )
 
 // WorkflowFile represents a discovered workflow file

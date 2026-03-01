@@ -237,7 +237,7 @@ func TestParseEventData_CombinedHookAndTool(t *testing.T) {
 
 // Test workflow discovery with actual files
 func TestRunMatchingWorkflows_NoWorkflowsDir(t *testing.T) {
-	// Create a temp directory without .github/hooks
+	// Create a temp directory without .github/hookflows
 	tmpDir, err := os.MkdirTemp("", "hookflow-test-*")
 	if err != nil {
 		t.Fatal(err)
@@ -247,7 +247,7 @@ func TestRunMatchingWorkflows_NoWorkflowsDir(t *testing.T) {
 	// Test that empty event returns allow
 	// Note: We can't easily test runMatchingWorkflows directly as it writes to stdout
 	// Instead, we test the helper functions
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	_, err = os.Stat(workflowDir)
 	if !os.IsNotExist(err) {
 		t.Error("Expected workflow dir to not exist")
@@ -262,7 +262,7 @@ func TestFindWorkflowFile(t *testing.T) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	workflowDir := filepath.Join(tmpDir, ".github", "hooks")
+	workflowDir := filepath.Join(tmpDir, ".github", "hookflows")
 	if err := os.MkdirAll(workflowDir, 0755); err != nil {
 		t.Fatal(err)
 	}
