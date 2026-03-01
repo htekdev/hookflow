@@ -16,7 +16,7 @@ for hookflow in the current repository.
 
 This command creates:
 - .github/hookflows/ directory for your workflow files
-- .github/hookflows/hooks.json to integrate with Copilot CLI hooks
+- .github/hooks/hooks.json to integrate with Copilot CLI hooks
 - .github/skills/hookflow/SKILL.md for AI agent guidance
 
 After running init, you can create workflows using 'hookflow create'
@@ -46,14 +46,20 @@ func init() {
 func runInit(dir string, force bool) error {
 	fmt.Printf("Initializing hookflow in %s\n", dir)
 
-	// Create .github/hookflows directory
-	hooksDir := filepath.Join(dir, ".github", "hookflows")
-	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+	// Create .github/hookflows directory for workflow files
+	hookflowsDir := filepath.Join(dir, ".github", "hookflows")
+	if err := os.MkdirAll(hookflowsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create hookflows directory: %w", err)
 	}
-	fmt.Printf("✓ Created %s\n", hooksDir)
+	fmt.Printf("✓ Created %s\n", hookflowsDir)
 
-	// Create hooks.json in .github/hookflows/ (the standard location)
+	// Create .github/hooks directory for Copilot CLI hooks.json
+	hooksDir := filepath.Join(dir, ".github", "hooks")
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		return fmt.Errorf("failed to create hooks directory: %w", err)
+	}
+
+	// Create hooks.json in .github/hooks/ (the standard Copilot CLI location)
 	hooksFile := filepath.Join(hooksDir, "hooks.json")
 	if _, err := os.Stat(hooksFile); err == nil && !force {
 		fmt.Printf("⚠ %s already exists (use --force to overwrite)\n", hooksFile)
@@ -65,8 +71,8 @@ func runInit(dir string, force bool) error {
 		fmt.Printf("✓ Created %s\n", hooksFile)
 	}
 
-	// Create example workflow
-	exampleWorkflow := filepath.Join(hooksDir, "example.yml")
+	// Create example workflow in .github/hookflows/
+	exampleWorkflow := filepath.Join(hookflowsDir, "example.yml")
 	if _, err := os.Stat(exampleWorkflow); os.IsNotExist(err) {
 		exampleContent := generateExampleWorkflow()
 		if err := os.WriteFile(exampleWorkflow, []byte(exampleContent), 0644); err != nil {
@@ -106,7 +112,7 @@ func runInit(dir string, force bool) error {
 }
 
 // generateHooksJSON creates the hooks.json that integrates with Copilot CLI
-// This goes in .github/hookflows/hooks.json per Copilot CLI documentation
+// This goes in .github/hooks/hooks.json per Copilot CLI documentation
 func generateHooksJSON() string {
 	// Direct call to gh hookflow - requires gh extension to be installed
 	return `{

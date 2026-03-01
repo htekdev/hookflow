@@ -77,7 +77,7 @@ gh hookflow init
 
 This creates:
 - `.github/hookflows/` — Directory for your workflow files
-- `.github/hookflows/hooks.json` — Copilot CLI hook configuration
+- `.github/hooks/hooks.json` — Copilot CLI hook configuration
 - `.github/hookflows/example.yml` — Example workflow to get started
 - `.github/skills/hookflow/SKILL.md` — AI agent guidance for workflow creation
 
@@ -184,7 +184,7 @@ gh-hookflow integrates with [GitHub Copilot CLI hooks](https://docs.github.com/e
 ## Usage
 
 ```bash
-# Initialize a repository (creates .github/hookflows/ and hooks.json)
+# Initialize a repository (creates .github/hookflows/ and .github/hooks/hooks.json)
 gh hookflow init
 
 # Discover workflows in the current directory
